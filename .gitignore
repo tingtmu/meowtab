@@ -1,0 +1,5 @@
+*.log
+__pycache__/
+*.bak-*
+*.preview.png
+.claude/
