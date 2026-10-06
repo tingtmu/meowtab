@@ -4,6 +4,29 @@ A frosted-glass Alt+Tab replacement for Windows, written in AutoHotkey v2. It sh
 
 ![peek-alttab demo](docs/demo.gif)
 
+[![Download peek-alttab.zip](https://img.shields.io/badge/download-peek--alttab.zip-6F93B6?style=for-the-badge)](https://github.com/tingtmu/peek-alttab/releases/latest/download/peek-alttab.zip)
+
+No install needed: unzip, double-click `peek-alttab.exe`, hold Alt and press Tab. See [Quick start](#quick-start).
+
+## Contents
+
+- [Features](#features)
+- [Two styles](#two-styles)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+  - [Run at login](#run-at-login)
+  - [With GlazeWM (optional)](#with-glazewm-optional)
+  - [Good to know](#good-to-know)
+- [Usage](#usage)
+- [Settings panel](#settings-panel)
+- [Use your own images](#use-your-own-images)
+  - [Cleaning up images with cutout.py](#cleaning-up-images-with-cutoutpy)
+  - [Share your image sets](#share-your-image-sets)
+- [Settings](#settings)
+- [Building the exe](#building-the-exe)
+- [Tests](#tests)
+- [License](#license)
+
 ## Features
 
 - Frosted-glass pane with a live preview (DWM thumbnail) of the highlighted window.
@@ -16,57 +39,75 @@ A frosted-glass Alt+Tab replacement for Windows, written in AutoHotkey v2. It sh
 
 ## Two styles
 
-Run **only one** of these at a time. Both replace Alt+Tab.
+Run **only one** of these at a time. Both replace Alt+Tab, and each comes as an `.exe` (in the release zip) and as an `.ahk` script.
 
-| Script | Look |
+| Switcher | Look |
 | --- | --- |
-| `peek-alttab.ahk` (main) | Glass look. The image peeks over the pane's top-left edge from behind, slides up when the pane opens, and glides when the window count changes. |
-| `elegant-alttab.ahk` | Simpler pane. The image sits inside the pane's bottom-left corner. |
+| `peek-alttab` (main) | Glass look. The image peeks over the pane's top-left edge from behind, slides up when the pane opens, and glides when the window count changes. |
+| `elegant-alttab` | Simpler pane. The image sits inside the pane's bottom-left corner. |
 
 `alttab-glass.ahk`, `gdip-helpers.ahk` and the `settings-*.ahk` files are helpers that the two scripts include. They are not meant to be run directly.
 
 ## Requirements
 
-- Windows 11.
-- [AutoHotkey](https://www.autohotkey.com/) v2.0 or newer.
+- Windows 11 (64-bit for the exe).
+- [AutoHotkey](https://www.autohotkey.com/) v2.0 or newer, only if you run the `.ahk` scripts. The exe needs nothing else.
 - Optional, only for `cutout.py` and the panel's **Clean background**: Python with `Pillow`, `numpy` and `scipy`.
 
-## Install / quick start
+## Quick start
 
-1. Install AutoHotkey v2.
-2. Download or clone this repo:
-   ```
-   git clone https://github.com/tingtmu/peek-alttab.git
-   ```
-3. Double-click `peek-alttab.ahk`. That's it: hold Alt and press Tab.
+Pick one of these:
 
-Double-click the tray icon (or right-click it > **Settings…**) to open the [settings panel](#settings-panel). Right-click it to reload or exit the script.
+**1. Download (easiest, nothing to install)**
+
+1. Download [peek-alttab.zip](https://github.com/tingtmu/peek-alttab/releases/latest/download/peek-alttab.zip) from the latest release.
+2. Right-click it > **Extract All…**, into a folder of your own such as Documents (not Program Files: your settings and pictures are saved next to the exe).
+3. Double-click `peek-alttab.exe`. Hold Alt and press Tab.
+
+The exe isn't code-signed, so the first time Windows may say "Windows protected your PC" (SmartScreen, "unrecognized app"). Click **More info**, then **Run anyway**. It is built from the scripts in this repo with the official AutoHotkey compiler; see [Building the exe](#building-the-exe) to build it yourself.
+
+The zip holds `peek-alttab.exe`, `elegant-alttab.exe`, the cat images, `cutout.py`, this README and the license. To update, extract a newer zip over the folder: your `settings.ini` and `images/custom_*` pictures are kept.
+
+**2. Already have AutoHotkey v2**
+
+Download the source ([Code > Download ZIP](https://github.com/tingtmu/peek-alttab/archive/refs/heads/main.zip)), unzip it, and double-click `peek-alttab.ahk`.
+
+**3. git clone** (to contribute, or update with `git pull`)
+
+```
+git clone https://github.com/tingtmu/peek-alttab.git
+```
+
+Then double-click `peek-alttab.ahk`.
+
+Double-click the tray icon, a sleepy cat (or right-click it > **Settings…**), to open the [settings panel](#settings-panel). Right-click it to reload or exit.
 
 ### Run at login
 
-Press `Win+R`, type `shell:startup`, and put a shortcut to `peek-alttab.ahk` in the folder that opens.
+Press `Win+R`, type `shell:startup`, and put a shortcut to `peek-alttab.exe` (or `peek-alttab.ahk`) in the folder that opens.
 
 ### With GlazeWM (optional)
 
-Add the script to `startup_commands` in GlazeWM's `config.yaml`:
+Add the switcher to `startup_commands` in GlazeWM's `config.yaml`:
 
 ```yaml
 general:
-  startup_commands: ['shell-exec C:\path\to\peek-alttab\peek-alttab.ahk']
+  startup_commands: ['shell-exec C:\path\to\peek-alttab\peek-alttab.exe']
 ```
 
-Then make the script exit when GlazeWM quits: create `settings.ini` next to the script (or open it, if the panel already made one) and add this line under `[settings]`:
+(or `peek-alttab.ahk`). Then make it exit when GlazeWM quits: create `settings.ini` next to it (or open it, if the panel already made one) and add this line under `[settings]`:
 
 ```ini
 [settings]
 WM_PROCESS=glazewm.exe
 ```
 
-Reload the script. The panel keeps this line when it saves.
+With the `.ahk` you can instead set `WM_PROCESS := "glazewm.exe"` at the top of the script. Reload it from the tray menu. The panel keeps this line when it saves.
 
 ### Good to know
 
-- Windows doesn't let a normal script's hotkeys reach an elevated (administrator) window, so while one is focused you get the native Alt+Tab. To cover those windows too, run the script as administrator.
+- Windows doesn't let a normal script's hotkeys reach an elevated (administrator) window, so while one is focused you get the native Alt+Tab. To cover those windows too, run the switcher as administrator.
+- Antivirus tools now and then flag compiled AutoHotkey programs by mistake. If yours does, run the `.ahk` script instead (option 2).
 
 ## Usage
 
@@ -95,7 +136,7 @@ Double-click the tray icon, or right-click it and choose **Settings…**.
 - **Peek height** (`peek-alttab.ahk` only). How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes show it with your own pictures.
 - **List font.** Any installed font and a size from 10 to 24, with a sample row.
 
-**Save** (or Enter) writes `settings.ini` next to the script and reloads it. **Cancel** (or Esc) changes nothing. **Reset to defaults** (asks first) removes the panel's settings from `settings.ini`. It never deletes pictures, and keeps lines you added yourself, such as `WM_PROCESS`.
+**Save** (or Enter) writes `settings.ini` next to the script (or exe) and reloads it. **Cancel** (or Esc) changes nothing. **Reset to defaults** (asks first) removes the panel's settings from `settings.ini`. It never deletes pictures, and keeps lines you added yourself, such as `WM_PROCESS`.
 
 Your pictures are copied into `images/` as `custom_few.png`, `custom_some.png` and `custom_many.png`, and the panel switches to that set. Moods you didn't change get a copy of the picture they had, so nothing else changes. The shipped `chill_*` cats are never overwritten. Large pictures are scaled down to 1024 px and photos are turned upright.
 
@@ -144,7 +185,7 @@ Pull requests adding image sets to `images/` are welcome. Please only submit art
 
 ## Settings
 
-The block at the top of each script holds the built-in defaults. `settings.ini` next to the script overrides them: the panel writes it, and you can also add lines by hand under `[settings]` (as `NAME=value`, e.g. `WM_PROCESS=glazewm.exe`) for the keys marked *ini* below; the panel keeps those lines when it saves. Every value read from `settings.ini` is checked: one that's invalid falls back to its default, one that's out of range is clamped, and a tray notification says which. Editing the script itself still works for everything, including the advanced constants, followed by **Reload Script** from the tray menu.
+The block at the top of each script holds the built-in defaults. `settings.ini` next to the script overrides them: the panel writes it, and you can also add lines by hand under `[settings]` (as `NAME=value`, e.g. `WM_PROCESS=glazewm.exe`) for the keys marked *ini* below; the panel keeps those lines when it saves. Every value read from `settings.ini` is checked: one that's invalid falls back to its default, one that's out of range is clamped, and a tray notification says which. With the `.ahk` scripts, editing the script itself still works for everything, including the advanced constants, followed by **Reload Script** from the tray menu (the exe reads only `settings.ini`).
 
 | Setting | Default | Applies to | Set in | What it does |
 | --- | --- | --- | --- | --- |
@@ -165,6 +206,16 @@ The block at the top of each script holds the built-in defaults. `settings.ini` 
 | `IMG_DIR` | `"images"` | both | script | Folder of the mood images, relative to the script. |
 
 `peek-alttab.ahk` also has a **"Glass look"** block of constants just below the settings (colours, light direction, shadow, grain, animation timings, selection pill, accent glow). It is there for tweaking; each line is commented.
+
+## Building the exe
+
+`build.ps1` compiles both switchers and packs the release zip:
+
+```
+powershell -ExecutionPolicy Bypass -File build.ps1
+```
+
+It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\peek-alttab\` and `dist\peek-alttab.zip`. Each exe's name, version and icon come from the `;@Ahk2Exe-…` lines at the top of its script; the icon, `assets/peek-alttab.ico`, is made from `images/chill_few.png`.
 
 ## Tests
 
@@ -190,4 +241,4 @@ The last checks can fail on multi-monitor setups when the test's tool window ope
 
 MIT. See [LICENSE](LICENSE).
 
-The default cat images are AI-generated placeholders, included in this repo under the same license.
+The default cat images (and the icon made from one) are AI-generated placeholders, included in this repo under the same license.
