@@ -24,6 +24,7 @@ No install needed: unzip, double-click `peek-alttab.exe`, hold Alt and press Tab
   - [Share your image sets](#share-your-image-sets)
 - [Settings](#settings)
 - [Building the exe](#building-the-exe)
+- [Code signing policy](#code-signing-policy)
 - [Tests](#tests)
 - [License](#license)
 
@@ -215,7 +216,22 @@ The block at the top of each script holds the built-in defaults. `settings.ini` 
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\peek-alttab\` and `dist\peek-alttab.zip`. Each exe's name, version and icon come from the `;@Ahk2Exe-…` lines at the top of its script; the icon, `assets/peek-alttab.ico`, is made from `images/chill_few.png`.
+It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\peek-alttab\` and `dist\peek-alttab.zip`. Each exe's name, version and icon come from the `;@Ahk2Exe-…` lines at the top of its script; the icon, `assets/peek-alttab.ico`, is made from `images/chill_few.png`. The build stops if the zip would hold anything beyond the exes, the `chill_*` images, `cutout.py`, this README and the license.
+
+Release zips are built by [GitHub Actions](.github/workflows/build.yml) from a version tag, with pinned, hash-checked copies of AutoHotkey and Ahk2Exe.
+
+## Code signing policy
+
+> **Status:** applied for. Until it is approved, releases are unsigned (see [Quick start](#quick-start)).
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- **Committers and reviewers:** [tingtmu](https://github.com/tingtmu)
+- **Approvers:** [tingtmu](https://github.com/tingtmu)
+
+Only the two exes in the release zip are signed. They are built by the GitHub Actions workflow above from this repository's source, and every signing request is approved by hand.
+
+**Privacy:** this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Your settings and images stay in its own folder.
 
 ## Tests
 
