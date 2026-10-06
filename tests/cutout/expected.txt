@@ -1,0 +1,15 @@
+# name status left top side, made by cutout.py (the oracle). status: 0 cleaned, 1 already transparent (crop only), 10 border varies, 11 background not light, 12 no dark outline, 13 no background reachable, 14 nothing visible. left/top may be negative
+01_simple_face 0 59 9 403
+02_white_on_white 0 59 9 403
+03_gap_outline 0 46 31 509
+04_open_bottom 0 32 47 457
+05_legs_gap 0 32 47 457
+06_colored_fill 0 49 29 403
+07_dust_specks 0 59 9 403
+08_transparent_margins 1 56 81 309
+09_clean_square 1 0 0 318
+10_noisy_border 10 0 0 0
+11_dark_bg 11 0 0 0
+12_pastel_no_outline 12 0 0 0
+13_touches_edges 0 -16 -41 552
+14_jpeg_grain 0 36 11 329

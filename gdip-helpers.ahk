@@ -136,3 +136,13 @@ SavePng(bm, file) {   ; GDI+ bitmap -> PNG file; true = written
         clsid := Buffer(16), DllCall("ole32\CLSIDFromString", "wstr", "{557CF406-1A04-11D3-9A73-0000F81EF32E}", "ptr", clsid)
     return !DllCall("gdiplus\GdipSaveImageToFile", "ptr", bm, "wstr", file, "ptr", clsid, "ptr", 0)
 }
+
+ExifTurn(bm) {   ; EXIF orientation -> GDI+ RotateFlipType that makes it upright (0 = none)
+    if DllCall("gdiplus\GdipGetPropertyItemSize", "ptr", bm, "uint", 0x0112, "uint*", &n := 0) || n < 26   ; 24-byte item + SHORT
+        return 0
+    item := Buffer(n)
+    if DllCall("gdiplus\GdipGetPropertyItem", "ptr", bm, "uint", 0x0112, "uint", n, "ptr", item)
+        return 0
+    o := NumGet(NumGet(item, 16, "ptr"), "ushort")       ; PropertyItem.value -> SHORT
+    return o >= 1 && o <= 8 ? [0, 4, 2, 6, 5, 1, 7, 3][o] : 0
+}

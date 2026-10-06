@@ -20,11 +20,9 @@ No install needed: unzip, double-click `peek-alttab.exe`, hold Alt and press Tab
 - [Usage](#usage)
 - [Settings panel](#settings-panel)
 - [Use your own images](#use-your-own-images)
-  - [Cleaning up images with cutout.py](#cleaning-up-images-with-cutoutpy)
   - [Share your image sets](#share-your-image-sets)
 - [Settings](#settings)
 - [Building the exe](#building-the-exe)
-- [Code signing policy](#code-signing-policy)
 - [Tests](#tests)
 - [License](#license)
 
@@ -47,13 +45,12 @@ Run **only one** of these at a time. Both replace Alt+Tab, and each comes as an 
 | `peek-alttab` (main) | Glass look. The image peeks over the pane's top-left edge from behind, slides up when the pane opens, and glides when the window count changes. |
 | `elegant-alttab` | Simpler pane. The image sits inside the pane's bottom-left corner. |
 
-`alttab-glass.ahk`, `gdip-helpers.ahk` and the `settings-*.ahk` files are helpers that the two scripts include. They are not meant to be run directly.
+`alttab-glass.ahk`, `gdip-helpers.ahk`, `cutout.ahk` and the `settings-*.ahk` files are helpers that the two scripts include. They are not meant to be run directly.
 
 ## Requirements
 
 - Windows 11 (64-bit for the exe).
 - [AutoHotkey](https://www.autohotkey.com/) v2.0 or newer, only if you run the `.ahk` scripts. The exe needs nothing else.
-- Optional, only for `cutout.py` and the panel's **Clean background**: Python with `Pillow`, `numpy` and `scipy`.
 
 ## Quick start
 
@@ -67,7 +64,7 @@ Pick one of these:
 
 The exe isn't code-signed, so the first time Windows may say "Windows protected your PC" (SmartScreen, "unrecognized app"). Click **More info**, then **Run anyway**. It is built from the scripts in this repo with the official AutoHotkey compiler; see [Building the exe](#building-the-exe) to build it yourself.
 
-The zip holds `peek-alttab.exe`, `elegant-alttab.exe`, the cat images, `cutout.py`, this README and the license. To update, extract a newer zip over the folder: your `settings.ini` and `images/custom_*` pictures are kept.
+The zip holds `peek-alttab.exe`, `elegant-alttab.exe`, the cat images, this README and the license. To update, extract a newer zip over the folder: your `settings.ini` and `images/custom_*` pictures are kept.
 
 **2. Already have AutoHotkey v2**
 
@@ -109,6 +106,7 @@ With the `.ahk` you can instead set `WM_PROCESS := "glazewm.exe"` at the top of 
 
 - Windows doesn't let a normal script's hotkeys reach an elevated (administrator) window, so while one is focused you get the native Alt+Tab. To cover those windows too, run the switcher as administrator.
 - Antivirus tools now and then flag compiled AutoHotkey programs by mistake. If yours does, run the `.ahk` script instead (option 2).
+- It never connects to the network. Your settings and pictures stay in its own folder.
 
 ## Usage
 
@@ -133,7 +131,7 @@ Double-click the tray icon, or right-click it and choose **Settings…**.
 ![Settings panel](docs/settings.png)
 
 - **Mood images.** One card per mood. Click a card to choose a picture (PNG, JPG, BMP or GIF), or drag a file onto it. The small `−  3  +` steppers set where "some" and "many" start; the window ranges under each card update as you go.
-- **Clean background** (`✧ Clean` on a card with your own picture) runs `cutout.py` on it: the plain light background goes, and the picture is cropped to a square. It needs Python with Pillow, numpy and scipy (`pip install pillow numpy scipy`); without them the button stays hidden. If a picture doesn't suit it, the reason is shown under the cards.
+- **Clean background** (`✧ Clean` on a card with your own picture) removes its plain light background and crops it to a square. It is built in and needs nothing else. If a picture doesn't suit it, the reason is shown under the cards.
 - **Peek height** (`peek-alttab.ahk` only). How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes show it with your own pictures.
 - **List font.** Any installed font and a size from 10 to 24, with a sample row.
 
@@ -156,29 +154,6 @@ Tips:
 - A **square PNG with a transparent background** works best. Any resolution is fine: images are scaled once at startup (bicubic) to `IMG_SIZE`. A non-square image keeps its shape and is centred on a transparent square.
 - A missing file just means no image for that mood.
 - In `peek-alttab.ahk`, `PEEK_MIN` and `PEEK_MAX` control how much of the image shows above the pane (transparent padding is ignored). If your art shows too much or too little, tune them in the panel.
-
-### Cleaning up images with cutout.py
-
-If your art is a sticker-style drawing with a dark outline on a plain light background, `cutout.py` can make it transparent and crop it to a tight square for you:
-
-```
-pip install pillow numpy scipy
-python cutout.py images/dog_*.png
-```
-
-What it does:
-
-- Removes the plain light background, keeping the subject (a white subject on a white background survives, as long as the outline is closed).
-- Crops to a tight square with a little padding.
-- Keeps your original next to the result as `<name>.png.bak-<timestamp>`.
-- Images that are already transparent only get the crop, so running it twice is harmless.
-
-Flags:
-
-- `--preview` writes `<name>.preview.png` on a magenta background and changes nothing else, so you can check the result first.
-- `--no-seal` turns off the "virtual bottom seal" that closes outlines left open at the bottom of the subject.
-
-Limits: the background must be a near-uniform light colour, and the art needs a dark outline. Files that don't fit are skipped with a reason. JPG and BMP inputs are written out as a sibling `.png`, since those formats can't hold transparency.
 
 ### Share your image sets
 
@@ -216,22 +191,11 @@ The block at the top of each script holds the built-in defaults. `settings.ini` 
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\peek-alttab\` and `dist\peek-alttab.zip`. Each exe's name, version and icon come from the `;@Ahk2Exe-…` lines at the top of its script; the icon, `assets/peek-alttab.ico`, is made from `images/chill_few.png`. The build stops if the zip would hold anything beyond the exes, the `chill_*` images, `cutout.py`, this README and the license.
+It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\peek-alttab\` and `dist\peek-alttab.zip`. Each exe's name, version and icon come from the `;@Ahk2Exe-…` lines at the top of its script; the icon, `assets/peek-alttab.ico`, is made from `images/chill_few.png`. The build stops if the zip would hold anything beyond the exes, the `chill_*` images, this README and the license.
+
+The **Clean background** code is C (`cutout.c`) compiled to machine code that lives in `cutout-mcode.ahk`, so neither the scripts nor the exes need a compiler or any extra install. `build-mcode.ps1` regenerates that file from `cutout.c` with a pinned, hash-checked [Zig](https://ziglang.org) (downloaded into `build\`, nothing is installed); run it after editing `cutout.c`. CI checks the file is up to date.
 
 Release zips are built by [GitHub Actions](.github/workflows/build.yml) from a version tag, with pinned, hash-checked copies of AutoHotkey and Ahk2Exe.
-
-## Code signing policy
-
-> **Status:** applied for. Until it is approved, releases are unsigned (see [Quick start](#quick-start)).
-
-Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
-
-- **Committers and reviewers:** [tingtmu](https://github.com/tingtmu)
-- **Approvers:** [tingtmu](https://github.com/tingtmu)
-
-Only the two exes in the release zip are signed. They are built by the GitHub Actions workflow above from this repository's source, and every signing request is approved by hand.
-
-**Privacy:** this program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. Your settings and images stay in its own folder.
 
 ## Tests
 
@@ -252,6 +216,8 @@ It prints `PASS`/`FAIL` per check and ends with `ALL PASSED` (exit code 0) or th
 - Alt+Down moves the selection like Tab.
 
 The last checks can fail on multi-monitor setups when the test's tool window opens on another monitor. That is a test environment quirk, not a regression.
+
+`tests/cutout.test.ahk` is the parity test for **Clean background**: it cleans the pictures in `tests/cutout/fixtures` and compares them with the expected results (made by the script this code replaced, still in the git history). Run it the same way (`tests\cutout.test.ahk`); it also ends with `ALL PASSED`, and CI runs it too.
 
 ## License
 

@@ -9,7 +9,8 @@
     build\ahk2exe (git-ignored). Nothing is installed.
 
     The exe's name, version, description and icon come from the ;@Ahk2Exe-... lines at the top
-    of each script.
+    of each script. The background-removal machine code is already in cutout-mcode.ahk (committed;
+    regenerate it from cutout.c with build-mcode.ps1), so the exes need nothing else at run time.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File build.ps1
@@ -71,7 +72,7 @@ foreach ($name in $scripts) {
 
 # Only the shipped placeholder images: never the user's own (custom_*) or a local settings.ini
 Copy-Item (Join-Path $root 'images\chill_*.png') (Join-Path $stage 'images')
-Copy-Item (Join-Path $root 'cutout.py'), (Join-Path $root 'README.md'), (Join-Path $root 'LICENSE') $stage
+Copy-Item (Join-Path $root 'README.md'), (Join-Path $root 'LICENSE') $stage
 
 # Entries added one by one: Windows PowerShell 5.1's Compress-Archive and CreateFromDirectory write
 # backslashes into entry names, which some unzip tools turn into flat "peek-alttab\..." files.
@@ -87,7 +88,7 @@ try {
 } finally { $zip.Dispose() }
 
 # Fail on anything outside the allowlist, so a private file can never reach a release
-$allowed = '^peek-alttab/((peek|elegant)-alttab\.exe|images/chill_[^/]+\.png|cutout\.py|README\.md|LICENSE)$'
+$allowed = '^peek-alttab/((peek|elegant)-alttab\.exe|images/chill_[^/]+\.png|README\.md|LICENSE)$'
 $zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
 try { $bad = @($zip.Entries.FullName | Where-Object { $_ -notmatch $allowed }) } finally { $zip.Dispose() }
 if ($bad) { throw "Unexpected files in the zip: $($bad -join ', ')" }

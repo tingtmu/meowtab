@@ -43,6 +43,19 @@ jobs:
           "AHK_BASE=$tools\ahk\AutoHotkey64.exe" >> $env:GITHUB_ENV
           "AHK2EXE=$tools\ahk2exe\Ahk2Exe.exe" >> $env:GITHUB_ENV
 
+      - name: Check cutout-mcode.ahk is built from cutout.c
+        shell: powershell
+        run: .\build-mcode.ps1 -Check
+
+      - name: Cutout parity test
+        shell: powershell
+        run: |
+          $out = "$env:RUNNER_TEMP\cutout-test.txt"
+          $p = Start-Process $env:AHK_BASE -ArgumentList '/ErrorStdOut', 'tests\cutout.test.ahk' `
+            -Wait -PassThru -NoNewWindow -RedirectStandardOutput $out
+          Get-Content $out
+          if ($p.ExitCode -ne 0) { throw "tests\cutout.test.ahk failed (exit code $($p.ExitCode))." }
+
       - name: Build
         shell: powershell
         run: .\build.ps1

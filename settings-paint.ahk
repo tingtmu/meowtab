@@ -100,7 +100,7 @@ PaintCard(i, dc, w, h, st) {   ; picture well, caption, window range
         DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 7)
         DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", c.thumb, "int", (w - t) // 2, "int", (wh - t) // 2, "int", t, "int", t)
     }
-    if c.busy                                         ; veil while cutout.py works
+    if c.busy                                         ; veil while the cleaning runs
         FillRound(gr, 1, 1, w - 2, wh - 2, r, Argb("FFFFFF", 165))
     if c.pending                                      ; a new, unsaved picture
         Disc(gr, Dpx(13), Dpx(13), Dpx(3.5), Argb(LOOK.accent, 255))
@@ -166,9 +166,6 @@ PanelHintText() {   ; hovered element's hint, else the last message, else the st
         return e.hint
     if pnl.note != ""
         return pnl.note
-    for c in pnl.cards
-        if pnl.py = "" && (c.pending || IMG_PREFIX = "custom")
-            return "Clean background needs Python with Pillow, numpy and scipy."
     return "Click a card to choose its picture, or drop one onto it."
 }
 

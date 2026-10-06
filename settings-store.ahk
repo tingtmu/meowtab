@@ -1,5 +1,5 @@
 ; settings.ini <-> the Settings block, plus the file work behind the Settings… panel: validated loading,
-; saving, importing pictures, running cutout.py. #Included by settings-panel.ahk; functions only (globals
+; saving, importing pictures. #Included by settings-panel.ahk; functions only (globals
 ; defined here are set late in the auto-execute section, so SettingsLoad must not rely on them).
 
 ; Keys settings.ini may set: [name, kind, low, high]. A key applies only if the running script defines it
@@ -10,7 +10,7 @@ SettingsSchema() => [["FONT_NAME", "font"], ["FONT_SIZE", "int", 10, 24], ["IMG_
     , ["IMG_SIZE", "int", 40, 600], ["IMG_ROWS", "int", 0, 50], ["WM_PROCESS", "process"]]
 
 SettingsFile() => A_ScriptDir "\settings.ini"
-; Folder of the repo's own files (cutout.py, assets\). A compiled exe has no source files (A_LineFile is
+; Folder of the repo's own files (assets\). A compiled exe has no source files (A_LineFile is
 ; "*#1"), so there they sit next to the exe; as .ahk, next to this file (also when a test includes it).
 AppDir() => A_IsCompiled ? A_ScriptDir "\" : RegExReplace(A_LineFile, "[^\\]+$")
 Moods() => ["few", "some", "many"]
@@ -162,14 +162,6 @@ ImportImage(src, dest) {
     return ok ? "" : "couldn't write " dest
 }
 
-ExifTurn(bm) {   ; EXIF orientation -> GDI+ RotateFlipType that makes it upright (0 = none)
-    if DllCall("gdiplus\GdipGetPropertyItemSize", "ptr", bm, "uint", 0x0112, "uint*", &n := 0) || n < 24
-        return 0
-    item := Buffer(n), DllCall("gdiplus\GdipGetPropertyItem", "ptr", bm, "uint", 0x0112, "uint", n, "ptr", item)
-    o := NumGet(NumGet(item, 16, "ptr"), "ushort")       ; PropertyItem.value -> SHORT
-    return o >= 1 && o <= 8 ? [0, 4, 2, 6, 5, 1, 7, 3][o] : 0
-}
-
 ; Save: pending pictures become custom_<mood>.png; moods without one get a copy of the current set's
 ; picture (or lose a stale one), so the "custom" set always shows what the panel showed. "" = ok.
 ImagesCommit(prefix) {
@@ -186,7 +178,7 @@ ImagesCommit(prefix) {
     return ""
 }
 
-PendingClear() {   ; drop unsaved pictures and cutout.py's backups of them
+PendingClear() {   ; drop unsaved pictures (and any leftover backups of them)
     Loop Files A_ScriptDir "\" IMG_DIR "\custom_*.pending.png*"
         try FileDelete A_LoopFileFullPath
         catch as e
@@ -224,80 +216,3 @@ FontFamilies() {   ; installed families, sorted, without @vertical and symbol fo
         return 1
     }
 }
-
-; ----- Background jobs (Python): run hidden, polled only while one runs -----
-
-JobRun(cmd, done) {   ; done() is called once cmd has exited (or failed to start)
-    try Run(cmd, A_Temp, "Hide", &pid)
-    catch
-        return done()
-    SETTINGS_JOBS.Push({pid: pid, done: done})
-    SetTimer JobPoll, 150
-}
-
-JobPoll() {
-    global SETTINGS_JOBS
-    ended := [], still := []
-    for j in SETTINGS_JOBS
-        (ProcessExist(j.pid) ? still : ended).Push(j)
-    SETTINGS_JOBS := still
-    if !still.Length
-        SetTimer JobPoll, 0
-    for j in ended
-        done := j.done, done()                        ; (j.done() would pass j as a parameter)
-}
-
-JobsCancel() {
-    global SETTINGS_JOBS
-    SetTimer JobPoll, 0
-    for j in SETTINGS_JOBS
-        try Run A_ComSpec " /c taskkill /pid " j.pid " /t /f", , "Hide"
-    SETTINGS_JOBS := []
-}
-
-; Find a Python that can run cutout.py (Pillow, numpy, scipy) without blocking the UI: each candidate
-; touches a marker file if the imports work. done(cmd) gets "python", "py -3" or "" (none).
-PyFind(done, tries := ["python", "py -3"]) {
-    if !tries.Length
-        return done("")
-    py := tries[1], rest := tries.Clone(), rest.RemoveAt(1), marker := A_Temp "\peek-alttab-py.ok"
-    try FileDelete marker
-    JobRun(py ' -I -c "import sys, pathlib, PIL, numpy, scipy; pathlib.Path(sys.argv[1]).touch()" "' marker '"', Found)
-    Found() {
-        if !FileExist(marker)
-            return PyFind(done, rest)
-        try FileDelete marker
-        done(py)
-    }
-}
-
-; Clean a picture in place with cutout.py; done(result) gets {changed, msg}. cutout.py's backup is removed
-; on success: the panel only ever cleans its own working copy.
-CutoutRun(py, file, done) {
-    out := A_Temp "\peek-alttab-cutout-" A_TickCount ".txt"
-    script := AppDir() "cutout.py"
-    JobRun(A_ComSpec ' /s /c "' py ' -I -X utf8 "' script '" "' file '" > "' out '" 2>&1"', Ended)
-    Ended() {
-        text := ""
-        try text := FileRead(out, "UTF-8")
-        try FileDelete out
-        Loop Files file ".bak-*"
-            try FileDelete A_LoopFileFullPath
-        done(CutoutResult(text))
-    }
-}
-
-CutoutResult(text) {   ; cutout.py's one-line report -> {changed, msg}
-    if RegExMatch(text, "m)skipped - (.+)$", &m)
-        return {changed: false, msg: "left as is: " Trim(m[1])}
-    if InStr(text, "unchanged")
-        return {changed: false, msg: "already clean"}
-    if InStr(text, "cleaned (")
-        return {changed: true, msg: "background removed"}
-    if InStr(text, "already transparent")
-        return {changed: true, msg: "already transparent, cropped to a square"}
-    lines := StrSplit(Trim(text, " `r`n"), "`n")
-    return {changed: false, msg: "cleaning failed" (lines.Length && lines[-1] != "" ? " (" Trim(lines[-1]) ")" : "")}
-}
-
-global SETTINGS_JOBS := []

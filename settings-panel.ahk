@@ -6,6 +6,7 @@
 #Include %A_LineFile%\..\gdip-helpers.ahk
 #Include %A_LineFile%\..\settings-store.ahk
 #Include %A_LineFile%\..\settings-paint.ahk
+#Include %A_LineFile%\..\cutout.ahk
 
 ; The switcher's palette (same values as the glass constants in peek-alttab.ahk), one restrained accent.
 global LOOK := {bgTop: "FCF9F4", bg: "FAF6EF", bgBot: "F5EEE2", card: "FDFBF7", line: "E6DAC6", border: "D9CBB4"
@@ -31,7 +32,7 @@ SettingsOpen(*) {
     PendingClear()                                    ; leftovers of a crash
     peek := SettingsHas("PEEK_MIN")
     pnl := {tok: tok, el: Map(), cards: [], frames: [], labels: [], hover: 0, side: 0, drag: 0, dirty: false
-        , note: PanelIssues(), py: 0                  ; py: 0 = still looking for Python
+        , note: PanelIssues()
         , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE
         , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0}
     pnl.gui := g := Gui("-MinimizeBox -MaximizeBox -DPIScale", "peek-alttab settings")
@@ -48,7 +49,6 @@ SettingsOpen(*) {
         DllCall("dwmapi\DwmSetWindowAttribute", "ptr", g.Hwnd, "uint", a, "uint*", v, "uint", 4)   ; ivory caption, title
     PanelShow(w, h)
     PanelFontList()
-    PyFind(PanelPyFound)
 }
 
 ; Cards (few / some / many) with their range steppers, the peek scenes and sliders, the font row, the buttons.
@@ -65,7 +65,7 @@ PanelLayout(w) {
             PanelAdd("step", x + Dpx(12), y + Dpx(194), Dpx(80), Dpx(28), PaintStepper.Bind(i)
                 , "Where “" MOOD_NOTES[i] "” starts: the fewest windows that count.", PanelStepClick.Bind(i)).i := i
         c.clean := PanelAdd("chip", x + cw - Dpx(74), y + Dpx(194), Dpx(62), Dpx(28), PaintChip.Bind(i)
-            , "Clean background: remove a plain light background and crop (cutout.py).", PanelClean.Bind(i))
+            , "Clean background: remove a plain light background and crop.", PanelClean.Bind(i))
         c.clean.ctl.Visible := false
         pnl.cards.Push(c)
     }
@@ -146,7 +146,7 @@ PanelClose(*) {
     global pnl
     if !pnl
         return
-    JobsCancel(), PanelHook(false), pnl.gui.Destroy(), PendingClear()
+    CutoutCancel(), PanelHook(false), pnl.gui.Destroy(), PendingClear()
     for c in pnl.cards
         for b in [c.thumb, c.big]
             if b
@@ -317,8 +317,7 @@ PanelImport(i, file) {   ; the picture becomes this card's pending one (images\c
     if why := ImportImage(file, PendingImage(Moods()[i]))
         return PanelNote("That file didn't work: " why ".")
     pnl.dirty := true, PanelLoadCard(i)
-    PanelNote("New picture for “" MOOD_NOTES[i] "”. Save to use it"
-        . (pnl.py = "" ? "." : pnl.py ? ", or clean its background first." : "."))
+    PanelNote("New picture for “" MOOD_NOTES[i] "”. Save to use it, or clean its background first.")
 }
 
 ; (Re)load card i's picture: the pending one, else the current set's. Peek also keeps it at IMG_SIZE with
@@ -338,19 +337,14 @@ PanelLoadCard(i) {
     PanelChips(), PanelRedraw("card", "scene", "hint")
 }
 
-PanelChips() {   ; "Clean" shows on cards with the user's own picture, once Python is known to work
+PanelChips() {   ; "Clean" shows on cards with the user's own picture
     for c in pnl.cards
-        c.clean.ctl.Visible := pnl.py && c.thumb && (c.pending || IMG_PREFIX = "custom")
+        c.clean.ctl.Visible := c.thumb && (c.pending || IMG_PREFIX = "custom")
 }
 
-PanelPyFound(py) {
-    if pnl
-        pnl.py := py, PanelChips(), PanelRedraw("hint")
-}
-
-PanelClean(i, *) {   ; cutout.py on the card's working copy (made from the live picture if needed), async
+PanelClean(i, *) {   ; cutout.ahk on the card's working copy (made from the live picture if needed), async
     c := pnl.cards[i], pend := PendingImage(c.mood)
-    if c.busy || !pnl.py
+    if c.busy
         return
     made := !c.pending
     if made
@@ -359,7 +353,7 @@ PanelClean(i, *) {   ; cutout.py on the card's working copy (made from the live 
             return PanelNote("Couldn't prepare the picture (" e.Message ").")
     c.busy := true, c.clean.ctl.Enabled := false, PanelRedraw("card", "chip")
     PanelNote("Cleaning “" MOOD_NOTES[i] "”…")
-    CutoutRun(pnl.py, pend, PanelCleaned.Bind(i, made))
+    CutoutRun(pend, PanelCleaned.Bind(i, made))
 }
 
 PanelCleaned(i, made, r) {
