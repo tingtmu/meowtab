@@ -86,6 +86,12 @@ try {
     }
 } finally { $zip.Dispose() }
 
+# Fail on anything outside the allowlist, so a private file can never reach a release
+$allowed = '^peek-alttab/((peek|elegant)-alttab\.exe|images/chill_[^/]+\.png|cutout\.py|README\.md|LICENSE)$'
+$zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
+try { $bad = @($zip.Entries.FullName | Where-Object { $_ -notmatch $allowed }) } finally { $zip.Dispose() }
+if ($bad) { throw "Unexpected files in the zip: $($bad -join ', ')" }
+
 Write-Host ''
 Get-ChildItem $stage -Recurse -File | ForEach-Object {
     '{0,-28} {1,10:N0} bytes' -f $_.FullName.Substring($stage.Length + 1), $_.Length

@@ -1,0 +1,54 @@
+# Builds dist\peek-alttab.zip from the repo with pinned, hash-checked AutoHotkey and Ahk2Exe,
+# so a signed release can be traced back to this source. Runs on version tags or by hand.
+name: build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  AHK_VERSION: 2.0.28
+  AHK_SHA256: b63be7548792b4ad0dfe424d91cc69376694ed2f758245b7a75a0c77d693b478
+  AHK2EXE_VERSION: 1.1.37.02a2
+  AHK2EXE_SHA256: c29b8c3a5124850d79fc9e66e2ca79677c377d7f31631ad3022ba159c5d9e3be
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch AutoHotkey and Ahk2Exe
+        shell: pwsh
+        run: |
+          function Get-Pinned($url, $sha256, $dir) {
+            $zip = "$dir.zip"
+            Invoke-WebRequest $url -OutFile $zip
+            $actual = (Get-FileHash $zip -Algorithm SHA256).Hash
+            if ($actual -ne $sha256) { throw "SHA-256 mismatch for $url`: $actual" }
+            Expand-Archive $zip -DestinationPath $dir
+          }
+          $tools = "$env:RUNNER_TEMP\tools"
+          New-Item -ItemType Directory -Force $tools | Out-Null
+          Get-Pinned "https://github.com/AutoHotkey/AutoHotkey/releases/download/v$env:AHK_VERSION/AutoHotkey_$env:AHK_VERSION.zip" `
+            $env:AHK_SHA256 "$tools\ahk"
+          Get-Pinned "https://github.com/AutoHotkey/Ahk2Exe/releases/download/Ahk2Exe$env:AHK2EXE_VERSION/Ahk2Exe$env:AHK2EXE_VERSION.zip" `
+            $env:AHK2EXE_SHA256 "$tools\ahk2exe"
+          "AHK_BASE=$tools\ahk\AutoHotkey64.exe" >> $env:GITHUB_ENV
+          "AHK2EXE=$tools\ahk2exe\Ahk2Exe.exe" >> $env:GITHUB_ENV
+
+      - name: Build
+        shell: powershell
+        run: .\build.ps1
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: peek-alttab
+          path: dist/peek-alttab.zip
+          if-no-files-found: error
