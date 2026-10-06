@@ -2,8 +2,7 @@
 
 A frosted-glass Alt+Tab replacement for Windows, written in AutoHotkey v2. It shows a live preview of the selected window, and a little mood image peeks over the edge of the pane, changing with how many windows you have open.
 
-<!-- TODO: demo GIF -->
-<!-- ![demo](docs/demo.gif) -->
+![peek-alttab demo](docs/demo.gif)
 
 ## Features
 
