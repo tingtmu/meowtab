@@ -15,6 +15,10 @@ global pnl := 0                                       ; the open panel's state; 
 A_TrayMenu.Insert("1&", "Settings…", SettingsOpen)
 A_TrayMenu.Insert("2&")
 A_TrayMenu.Default := "Settings…"                     ; double-click the tray icon
+if A_IsCompiled                                       ; an exe's menu is just Suspend, Pause, Exit: add Reload before Exit
+    A_TrayMenu.Insert(DllCall("GetMenuItemCount", "ptr", A_TrayMenu.Handle) "&", "&Reload Script", (*) => Reload())
+else if FileExist(AppDir() "assets\peek-alttab.ico")  ; the exe carries the icon itself
+    TraySetIcon AppDir() "assets\peek-alttab.ico"
 
 Dpx(v) => Round(v * A_ScreenDPI / 96)                 ; 96-dpi layout units -> pixels
 

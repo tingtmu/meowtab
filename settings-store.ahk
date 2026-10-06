@@ -10,6 +10,9 @@ SettingsSchema() => [["FONT_NAME", "font"], ["FONT_SIZE", "int", 10, 24], ["IMG_
     , ["IMG_SIZE", "int", 40, 600], ["IMG_ROWS", "int", 0, 50], ["WM_PROCESS", "process"]]
 
 SettingsFile() => A_ScriptDir "\settings.ini"
+; Folder of the repo's own files (cutout.py, assets\). A compiled exe has no source files (A_LineFile is
+; "*#1"), so there they sit next to the exe; as .ahk, next to this file (also when a test includes it).
+AppDir() => A_IsCompiled ? A_ScriptDir "\" : RegExReplace(A_LineFile, "[^\\]+$")
 Moods() => ["few", "some", "many"]
 MoodOf(n) => n < SOME_FROM ? 1 : n < MANY_FROM ? 2 : 3              ; window count -> 1 few, 2 some, 3 many
 MoodImage(prefix, mood) => A_ScriptDir "\" IMG_DIR "\" prefix "_" mood ".png"
@@ -272,7 +275,7 @@ PyFind(done, tries := ["python", "py -3"]) {
 ; on success: the panel only ever cleans its own working copy.
 CutoutRun(py, file, done) {
     out := A_Temp "\peek-alttab-cutout-" A_TickCount ".txt"
-    script := RegExReplace(A_LineFile, "[^\\]+$") "cutout.py"
+    script := AppDir() "cutout.py"
     JobRun(A_ComSpec ' /s /c "' py ' -I -X utf8 "' script '" "' file '" > "' out '" 2>&1"', Ended)
     Ended() {
         text := ""

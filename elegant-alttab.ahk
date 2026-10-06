@@ -1,5 +1,10 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
+;@Ahk2Exe-SetName elegant-alttab
+;@Ahk2Exe-SetDescription Simple Alt+Tab switcher with mood images
+;@Ahk2Exe-SetVersion 1.0.0
+;@Ahk2Exe-SetCopyright MIT`, tingwei
+;@Ahk2Exe-SetMainIcon assets\peek-alttab.ico
 ; Alt+Tab limited to the focused monitor. Windows cloaks windows on other virtual desktops, and
 ; tiling WMs like GlazeWM cloak hidden workspaces, so this == "current desktop / workspace".
 ; Hold Alt, press Tab / Shift+Tab to move, release Alt to switch, Esc to cancel.

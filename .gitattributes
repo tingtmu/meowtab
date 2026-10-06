@@ -3,3 +3,5 @@
 *.py text eol=lf
 *.md text eol=lf
 *.png binary
+*.ico binary
+*.ps1 text eol=crlf

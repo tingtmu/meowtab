@@ -5,3 +5,7 @@ __pycache__/
 .claude/
 settings.ini
 images/custom_*
+build/
+dist/
+*.exe
+*.zip
