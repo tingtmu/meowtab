@@ -34,8 +34,9 @@ for hwnd in WinGetList()            ; seed from Z-order so the first Alt+Tab is 
 if a := WinExist("A")               ; the active window is the newest
     mru[DllCall("GetAncestor", "ptr", a, "uint", 3, "ptr")] := 0
 global fgHook := CallbackCreate(OnForeground, "F", 7)
-DllCall("SetWinEventHook", "uint", 3, "uint", 3, "ptr", 0, "ptr", fgHook   ; EVENT_SYSTEM_FOREGROUND
-    , "uint", 0, "uint", 0, "uint", 0, "ptr")                              ; WINEVENT_OUTOFCONTEXT
+global fgHookH := DllCall("SetWinEventHook", "uint", 3, "uint", 3, "ptr", 0, "ptr", fgHook   ; EVENT_SYSTEM_FOREGROUND
+    , "uint", 0, "uint", 0, "uint", 0, "ptr")                                               ; WINEVENT_OUTOFCONTEXT
+OnExit((*) => (DllCall("UnhookWinEvent", "ptr", fgHookH), 0))   ; exit frees mru before it stops pumping events
 
 global wins := [], rows := [], idx := 0, cycling := false   ; rows: [title, SEPARATOR process] per item
 global g := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale")
