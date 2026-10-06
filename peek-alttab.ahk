@@ -4,7 +4,8 @@
 ; tiling WMs like GlazeWM cloak hidden workspaces, so this == "current desktop / workspace".
 ; Hold Alt, press Tab / Shift+Tab to move, release Alt to switch, Esc to cancel.
 
-; ===== Settings (edit these, then right-click tray icon > Reload Script) =====
+; ===== Settings: built-in defaults. Tray icon > Settings… saves overrides to settings.ini, which wins. =====
+; (Or edit these, then right-click tray icon > Reload Script.)
 FONT_NAME  := "Segoe UI"    ; ships with Windows; CJK titles fall back automatically
 FONT_SIZE  := 16      ; text size in points
 LIST_WIDTH := 700     ; list width in pixels
@@ -12,14 +13,14 @@ MAX_ROWS   := 15      ; longer lists scroll
 PREVIEW_W  := 800    ; live preview width in pixels, right of the list (0 = no preview)
 SEPARATOR  := "   —   "  ; between window title and process name
 IMG_DIR    := "images" ; folder of the mood images, relative to this script
-IMG_PREFIX := "chill" ; mood images in IMG_DIR: <prefix>_few.png (1-2 windows),
-                      ; <prefix>_some.png (3-7), <prefix>_many.png (8+). To swap: overwrite chill_*.png, run
-                      ; python cutout.py images/chill_*.png, then Reload.
+IMG_PREFIX := "chill" ; mood images in IMG_DIR: <prefix>_few.png, <prefix>_some.png, <prefix>_many.png
+SOME_FROM  := 3       ; window counts: few = 1 .. SOME_FROM-1, some = SOME_FROM .. MANY_FROM-1,
+MANY_FROM  := 8       ; many = MANY_FROM and up (2 <= SOME_FROM < MANY_FROM <= 30)
 IMG_SIZE   := 250     ; image peeking over the pane's top-left edge, in pixels
-; Share of the image's art (transparent padding ignored, so any image works) above the pane, by window count:
-; 1st value = 1 window, 2nd = 2 windows, ...; the last value is used for any count beyond.
-IMG_PEEK   := [0.72, 0.74, 0.76, 0.78, 0.80, 0.82, 0.85, 0.87, 0.89, 0.91, 0.93, 0.95]   ; any art: 0.72 .. 0.95
+PEEK_MIN   := 0.72    ; share of the image's art (transparent padding ignored) above the pane at 1 window,
+PEEK_MAX   := 0.95    ; rising evenly to this at MANY_FROM + 4 windows and beyond (0.30 .. 1.00)
 WM_PROCESS := ""      ; optional: script exits when this process is gone, e.g. "glazewm.exe" ("" = never)
+SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
 ; ==========================================================================
 
 ; ===== Glass look (opaque frosted pane lit from the bottom-left; colours RRGGBB, alphas 0-255) =====
@@ -59,8 +60,6 @@ ACCENT_S    := 0.62, ACCENT_L := 0.80, ACCENT_MIN_S := 0.12   ; pastel saturatio
 ACCENT_WARM := "FFE3C2", ACCENT_WARM_MIX := 0.12  ; warm the pastel slightly; the glow's lit bottom-left corner blooms warmer
 ACCENT_FILL_A := 40                    ; app-colour wash inside the well, around the thumbnail (0 = off)
 ACCENT_SPILL_A := 48, ACCENT_SPILL := 0.40   ; app light spilling from the preview onto the glass: alpha, reach (share of width) (0 = off)
-Argb(hex, a) => (a << 24) | Integer("0x" hex)
-Bgr(hex) => (n := Integer("0x" hex), ((n & 0xFF) << 16) | (n & 0xFF00) | (n >> 16))   ; GDI COLORREF
 ; ==========================================================================
 
 CoordMode "Mouse", "Screen"
@@ -287,7 +286,7 @@ ShowList() {
     global pillRow := wasShown ? idx : 0   ; fresh rows: the first Select snaps; re-show: pill stays put, no blank frame
     g.Show("Hide AutoSize")
     g.GetClientPos(, , &cw, &ch)
-    n := wins.Length, k := n <= 2 ? 1 : n <= 7 ? 2 : 3   ; few / some / many
+    n := wins.Length, k := MoodOf(n)  ; few / some / many
     moodNote.Text := n " window" (n = 1 ? "" : "s") " · " MOOD_NOTES[k]
     moodNote.GetPos(, , , &nh)
     moodNote.Move(, ch - g.MarginY - nh), moodNote.Visible := true
@@ -301,8 +300,11 @@ ShowList() {
     g.Show("NA x" x " y" (y + paneDY))
     DllCall("RedrawWindow", "ptr", g.Hwnd, "ptr", 0, "ptr", 0, "uint", 0x185)   ; INVALIDATE|ERASE|ALLCHILDREN|UPDATENOW
     ShowShadow(w, h)                 ; before the image, so the stack ends up pane > image > shadow
-    ShowPeek(imgs[k], IMG_PEEK[Min(n, IMG_PEEK.Length)], !wasShown, spans[k])
+    ShowPeek(imgs[k], PeekShare(n), !wasShown, spans[k])
 }
+
+; Share of the art above the pane for n windows: PEEK_MIN at 1, evenly up to PEEK_MAX at MANY_FROM + 4 and beyond.
+PeekShare(n) => PEEK_MIN + (PEEK_MAX - PEEK_MIN) * Min(Max(n - 1, 0) / (MANY_FROM + 3), 1)
 
 ; Put the image window behind the pane's top-left edge, `share` of its art showing (transparent padding
 ; ignored). It slides up from fully hidden once the pane has breathed in (it would show through the faint
@@ -407,5 +409,6 @@ IsSwitchable(hwnd) {
     return !cloaked
 }
 
-; Glass rendering, animation and accent helpers (functions only).
+; Glass rendering, animation and accent helpers (functions only); the Settings… panel and settings.ini.
 #Include %A_LineFile%\..\alttab-glass.ahk
+#Include %A_LineFile%\..\settings-panel.ahk

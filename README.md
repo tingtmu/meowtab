@@ -8,12 +8,12 @@ A frosted-glass Alt+Tab replacement for Windows, written in AutoHotkey v2. It sh
 ## Features
 
 - Frosted-glass pane with a live preview (DWM thumbnail) of the highlighted window.
-- A "mood image" that follows your window count: **few** (1-2) says "cozy ♡", **some** (3-7) says "nice ✌", **many** (8+) says "too many…".
+- A "mood image" that follows your window count: **few** (1-2) says "cozy ♡", **some** (3-7) says "nice ✌", **many** (8+) says "too many…". The ranges are yours to change.
 - Lists only the windows on the focused monitor, most recently used first. Windows cloaks windows on other virtual desktops, and tiling window managers (such as GlazeWM) cloak hidden workspaces, so in practice this means the current desktop or workspace.
 - Works with or without a tiling window manager. Recency is tracked from foreground changes rather than Z-order, so a re-tile does not shuffle the list.
 - Close the selected window with Alt+Delete and the list stays open.
 - Soft selection pill that glides between rows, a gentle fade-in on open, and a faint glow around the preview tinted from the selected app's icon colour.
-- Bring your own images: three PNGs and a one-line setting.
+- A settings panel (tray icon > **Settings…**): drop in your own pictures, set the window ranges, how far the image peeks and the list font, no code editing needed.
 
 ## Two styles
 
@@ -24,13 +24,13 @@ Run **only one** of these at a time. Both replace Alt+Tab.
 | `peek-alttab.ahk` (main) | Glass look. The image peeks over the pane's top-left edge from behind, slides up when the pane opens, and glides when the window count changes. |
 | `elegant-alttab.ahk` | Simpler pane. The image sits inside the pane's bottom-left corner. |
 
-`alttab-glass.ahk` is a helper that `peek-alttab.ahk` includes. It is not meant to be run directly.
+`alttab-glass.ahk`, `gdip-helpers.ahk` and the `settings-*.ahk` files are helpers that the two scripts include. They are not meant to be run directly.
 
 ## Requirements
 
 - Windows 11.
 - [AutoHotkey](https://www.autohotkey.com/) v2.0 or newer.
-- Optional, only for `cutout.py`: Python with `Pillow`, `numpy` and `scipy`.
+- Optional, only for `cutout.py` and the panel's **Clean background**: Python with `Pillow`, `numpy` and `scipy`.
 
 ## Install / quick start
 
@@ -41,7 +41,7 @@ Run **only one** of these at a time. Both replace Alt+Tab.
    ```
 3. Double-click `peek-alttab.ahk`. That's it: hold Alt and press Tab.
 
-Right-click the tray icon to reload or exit the script. Settings are edited at the top of the script, followed by **Reload Script** from the tray menu.
+Double-click the tray icon (or right-click it > **Settings…**) to open the [settings panel](#settings-panel). Right-click it to reload or exit the script.
 
 ### Run at login
 
@@ -56,7 +56,14 @@ general:
   startup_commands: ['shell-exec C:\path\to\peek-alttab\peek-alttab.ahk']
 ```
 
-Then set `WM_PROCESS := "glazewm.exe"` at the top of the script, so it exits when GlazeWM quits.
+Then make the script exit when GlazeWM quits: create `settings.ini` next to the script (or open it, if the panel already made one) and add this line under `[settings]`:
+
+```ini
+[settings]
+WM_PROCESS=glazewm.exe
+```
+
+Reload the script. The panel keeps this line when it saves.
 
 ### Good to know
 
@@ -78,19 +85,36 @@ Hold **Alt**, then:
 
 The first Tab picks the previous window (the one you were in last). Apps that show a "save changes?" prompt on close stay in the list until the prompt is answered.
 
+## Settings panel
+
+Double-click the tray icon, or right-click it and choose **Settings…**.
+
+![Settings panel](docs/settings.png)
+
+- **Mood images.** One card per mood. Click a card to choose a picture (PNG, JPG, BMP or GIF), or drag a file onto it. The small `−  3  +` steppers set where "some" and "many" start; the window ranges under each card update as you go.
+- **Clean background** (`✧ Clean` on a card with your own picture) runs `cutout.py` on it: the plain light background goes, and the picture is cropped to a square. It needs Python with Pillow, numpy and scipy (`pip install pillow numpy scipy`); without them the button stays hidden. If a picture doesn't suit it, the reason is shown under the cards.
+- **Peek height** (`peek-alttab.ahk` only). How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes show it with your own pictures.
+- **List font.** Any installed font and a size from 10 to 24, with a sample row.
+
+**Save** (or Enter) writes `settings.ini` next to the script and reloads it. **Cancel** (or Esc) changes nothing. **Reset to defaults** (asks first) removes the panel's settings from `settings.ini`. It never deletes pictures, and keeps lines you added yourself, such as `WM_PROCESS`.
+
+Your pictures are copied into `images/` as `custom_few.png`, `custom_some.png` and `custom_many.png`, and the panel switches to that set. Moods you didn't change get a copy of the picture they had, so nothing else changes. The shipped `chill_*` cats are never overwritten. Large pictures are scaled down to 1024 px and photos are turned upright.
+
+The panel is built when you open it and freed when you close it, so it costs nothing while closed and never slows Alt+Tab.
+
 ## Use your own images
 
-The default images (sleepy orange cats in `images/chill_few.png`, `chill_some.png` and `chill_many.png`) are placeholders. Swap in your own:
+The default images (sleepy orange cats in `images/chill_few.png`, `chill_some.png` and `chill_many.png`) are placeholders. The [settings panel](#settings-panel) is the easy way to swap them. By hand:
 
 1. Put three PNGs in `images/`, named `<prefix>_few.png`, `<prefix>_some.png` and `<prefix>_many.png`.
-2. Set `IMG_PREFIX := "<prefix>"` at the top of the script.
+2. Set `IMG_PREFIX=<prefix>` in `settings.ini` (or `IMG_PREFIX := "<prefix>"` at the top of the script).
 3. Right-click the tray icon and choose **Reload Script**.
 
 Tips:
 
-- A **square PNG with a transparent background** works best. Any resolution is fine: images are scaled once at startup (bicubic) to `IMG_SIZE`. Non-square images are stretched to a square, so crop them first.
+- A **square PNG with a transparent background** works best. Any resolution is fine: images are scaled once at startup (bicubic) to `IMG_SIZE`. A non-square image keeps its shape and is centred on a transparent square.
 - A missing file just means no image for that mood.
-- In `peek-alttab.ahk`, `IMG_PEEK` controls how much of the image shows above the pane (transparent padding is ignored). If your art shows too much or too little, tune it, and keep the values within 0.72 to 0.95.
+- In `peek-alttab.ahk`, `PEEK_MIN` and `PEEK_MAX` control how much of the image shows above the pane (transparent padding is ignored). If your art shows too much or too little, tune them in the panel.
 
 ### Cleaning up images with cutout.py
 
@@ -121,23 +145,25 @@ Pull requests adding image sets to `images/` are welcome. Please only submit art
 
 ## Settings
 
-Edit the block at the top of the script, then **Reload Script** from the tray menu.
+The block at the top of each script holds the built-in defaults. `settings.ini` next to the script overrides them: the panel writes it, and you can also add lines by hand under `[settings]` (as `NAME=value`, e.g. `WM_PROCESS=glazewm.exe`) for the keys marked *ini* below; the panel keeps those lines when it saves. Every value read from `settings.ini` is checked: one that's invalid falls back to its default, one that's out of range is clamped, and a tray notification says which. Editing the script itself still works for everything, including the advanced constants, followed by **Reload Script** from the tray menu.
 
-| Setting | Default | Applies to | What it does |
-| --- | --- | --- | --- |
-| `FONT_NAME` | `"Segoe UI"` | both | List font. |
-| `FONT_SIZE` | `16` | both | Text size in points. |
-| `LIST_WIDTH` | `700` | both | List width in pixels. |
-| `MAX_ROWS` | `15` | both | Longer lists scroll. |
-| `PREVIEW_W` | `800` | both | Live preview width in pixels, to the right of the list. `0` turns the preview off. Capped so it fits on screen. |
-| `SEPARATOR` | `"   —   "` | both | Text between a window's title and its process name. |
-| `IMG_DIR` | `"images"` | both | Folder of the mood images, relative to the script. |
-| `IMG_PREFIX` | `"chill"` | both | Images are `<prefix>_few.png`, `<prefix>_some.png`, `<prefix>_many.png`. |
-| `WM_PROCESS` | `""` | both | Optional. The script exits when this process is no longer running, e.g. `"glazewm.exe"`. Empty means never. |
-| `IMG_SIZE` | `250` | peek | Image size in pixels. |
-| `IMG_PEEK` | `[0.72 … 0.95]` | peek | Share of the image's art shown above the pane, by window count (1 window, 2 windows, ...; the last value is used for any larger count). Keep values within 0.72-0.95. |
-| `IMG_SIZE` | `100` | elegant | Image size in pixels. |
-| `IMG_ROWS` | `12` | elegant | The pane is tall enough that the list only covers the image beyond this many windows. |
+| Setting | Default | Applies to | Set in | What it does |
+| --- | --- | --- | --- | --- |
+| `FONT_NAME` | `"Segoe UI"` | both | panel | List font. |
+| `FONT_SIZE` | `16` | both | panel | Text size in points (10-24). |
+| `IMG_PREFIX` | `"chill"` | both | panel | Images are `<prefix>_few.png`, `<prefix>_some.png`, `<prefix>_many.png`. The panel uses `custom`. |
+| `SOME_FROM` | `3` | both | panel | Fewest windows that count as "some"; "few" is 1 to `SOME_FROM - 1`. |
+| `MANY_FROM` | `8` | both | panel | Fewest windows that count as "many". 2 ≤ `SOME_FROM` < `MANY_FROM` ≤ 30. |
+| `PEEK_MIN` | `0.72` | peek | panel | Share of the image's art shown above the pane with 1 window. |
+| `PEEK_MAX` | `0.95` | peek | panel | Share shown at `MANY_FROM + 4` windows and beyond; in between it rises evenly. 0.30-1.00, above `PEEK_MIN`. |
+| `WM_PROCESS` | `""` | both | ini | Optional. The script exits when this process is no longer running, e.g. `glazewm.exe`. Empty means never. |
+| `LIST_WIDTH` | `700` | both | ini | List width in pixels. |
+| `MAX_ROWS` | `15` | both | ini | Longer lists scroll. |
+| `PREVIEW_W` | `800` | both | ini | Live preview width in pixels, to the right of the list. `0` turns the preview off. Capped so it fits on screen. |
+| `IMG_SIZE` | `250` / `100` | peek / elegant | ini | Image size in pixels. |
+| `IMG_ROWS` | `12` | elegant | ini | The pane is tall enough that the list only covers the image beyond this many windows. |
+| `SEPARATOR` | `"   —   "` | both | script | Text between a window's title and its process name. |
+| `IMG_DIR` | `"images"` | both | script | Folder of the mood images, relative to the script. |
 
 `peek-alttab.ahk` also has a **"Glass look"** block of constants just below the settings (colours, light direction, shadow, grain, animation timings, selection pill, accent glow). It is there for tweaking; each line is commented.
 

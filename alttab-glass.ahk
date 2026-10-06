@@ -6,6 +6,7 @@ if A_LineFile = A_ScriptFullPath {
     MsgBox "This file is #Included by peek-alttab.ahk and can't run alone. Run peek-alttab.ahk instead.", "alttab-glass", 0x10
     ExitApp
 }
+#Include %A_LineFile%\..\gdip-helpers.ahk   ; RoundPath, FadeBrush, Stroke, Canvas, FitBitmap, ArtSpan, ...
 
 ; ----- Pane animation: inhale on open, selection pill glide (ticks only move, fade or repaint rows) -----
 
@@ -164,13 +165,6 @@ Pastel(c) {
     return out
 }
 
-Mix(a, b, t) {   ; "RRGGBB" a -> b by t (0-1)
-    a := Integer("0x" a), b := Integer("0x" b), out := ""
-    for s in [16, 8, 0]
-        out .= Format("{:02X}", Round((a >> s & 0xFF) + ((b >> s & 0xFF) - (a >> s & 0xFF)) * t))
-    return out
-}
-
 AccentRect(&x, &y, &w, &h) {   ; client rect the accent can touch: the whole pane (the spill reaches under the list)
     x := y := 0, g.GetClientPos(, , &w, &h)
 }
@@ -195,7 +189,7 @@ GlassAccent(rgb) {
             k := 2 * A_Index - 1, a := Round(ACCENT_A * Exp(-4.5 * (k / ACCENT_W) ** 2))
             if a
                 Stroke(gr, x - k, y - k, w + 2 * k, h + 2 * k, WELL_R + k, 2
-                    , [[bloom, a, 0], [rgb, a, 0.3], [rgb, a, 1]])
+                    , [[bloom, a, 0], [rgb, a, 0.3], [rgb, a, 1]], LIGHT_ANGLE)
         }
         if ACCENT_FILL_A {                         ; soft wash inside the well: lit from within, strongest at the top-right
             path := RoundPath(x, y, w, h, WELL_R)
@@ -204,7 +198,7 @@ GlassAccent(rgb) {
             DllCall("gdiplus\GdipDeleteBrush", "ptr", br), DllCall("gdiplus\GdipDeletePath", "ptr", path)
         }
         if ACCENT_LIP_A                            ; tint the well's top/right edge; the lit lip stays white
-            Stroke(gr, x + 0.5, y + 0.5, w - 1, h - 1, WELL_R, 1, Lip(0, rgb, ACCENT_LIP_A))
+            Stroke(gr, x + 0.5, y + 0.5, w - 1, h - 1, WELL_R, 1, Lip(0, rgb, ACCENT_LIP_A), LIGHT_ANGLE)
         DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
     }
     accentKey := glassKey "|" rgb
@@ -260,37 +254,14 @@ ShowShadow(w, h) {
         , "uint", 0x53)                                             ; just below the pane: NOSIZE|NOMOVE|NOACTIVATE|SHOWWINDOW
 }
 
-; Image file -> sz x sz 32bpp HBITMAP via GDI+ HighQualityBicubic (built-in "w24 h24" is
-; nearest-neighbor and drops thin lines). Transparent background = alpha kept. 0 = failed.
-; span gets the [top, bottom] rows of the visible art, so a peek can ignore transparent padding.
+; Image file -> sz x sz 32bpp HBITMAP (FitBitmap: bicubic, aspect kept). Transparent background = alpha kept.
+; 0 = failed. span gets the [top, bottom] rows of the visible art, so a peek can ignore transparent padding.
 ScaledBitmap(file, sz, &span := 0) {
     span := [0, sz]
-    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", file, "ptr*", &src := 0)
+    if !bm := FitBitmap(file, sz)
         return 0                    ; missing or unreadable
-    gr := Canvas(dst := NewBitmap(sz, sz))
-    DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 7)   ; HighQualityBicubic
-    DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", src, "int", 0, "int", 0, "int", sz, "int", sz)
-    DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr), DllCall("gdiplus\GdipDisposeImage", "ptr", src)
-    span := ArtSpan(dst, sz)
-    return ToHbm(dst)
-}
-
-ArtSpan(bm, sz) {   ; [first, last + 1] row holding pixels with alpha > 24; startup only, stops at the art
-    rc := Buffer(16), NumPut("int", 0, "int", 0, "int", sz, "int", sz, rc), bd := Buffer(32, 0)
-    DllCall("gdiplus\GdipBitmapLockBits", "ptr", bm, "ptr", rc, "uint", 1, "int", 0x26200A, "ptr", bd)   ; ReadOnly, 32bppARGB
-    stride := NumGet(bd, 8, "int"), bits := NumGet(bd, 16, "ptr"), top := 0, bot := sz
-    Row(y) {
-        Loop sz
-            if NumGet(bits, y * stride + 4 * A_Index - 1, "uchar") > 24
-                return true
-        return false
-    }
-    while top < sz && !Row(top)
-        top++
-    while bot > top && !Row(bot - 1)
-        bot--
-    DllCall("gdiplus\GdipBitmapUnlockBits", "ptr", bm, "ptr", bd)
-    return top < bot ? [top, bot] : [0, sz]
+    span := ArtSpan(bm, sz)
+    return ToHbm(bm)
 }
 
 ; ----- The glass pane: cached GDI+ layers blitted on WM_ERASEBKGND -----
@@ -355,7 +326,7 @@ PaintPlate(w, h) {
     EdgeFade(gr, pane, GLOW_RGB, GLOW_A, 0, 1 - 2 * GLOW_W / w, 1 - 2 * GLOW_W / h)
     DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", pane, "int", 0)
     i := 1 + RIM_W / 2                      ; just inside the DWM border
-    Stroke(gr, i, i, w - 2 * i, h - 2 * i, RIM_R, RIM_W, [["FFFFFF", RIM_A0, 0], ["FFFFFF", RIM_A1, 1]])
+    Stroke(gr, i, i, w - 2 * i, h - 2 * i, RIM_R, RIM_W, [["FFFFFF", RIM_A0, 0], ["FFFFFF", RIM_A1, 1]], LIGHT_ANGLE)
     DllCall("gdiplus\GdipDeletePath", "ptr", pane), DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
     return bm
 }
@@ -369,97 +340,10 @@ PaintInsets(gr) {
         br := FadeBrush(x, y, w, h, 90, [[WELL_TOP, WELL_TOP_A, 0], [WELL_BOT, WELL_BOT_A, 1]])
         DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", path)
         DllCall("gdiplus\GdipDeleteBrush", "ptr", br), DllCall("gdiplus\GdipDeletePath", "ptr", path)
-        Stroke(gr, x + 0.5, y + 0.5, w - 1, h - 1, WELL_R, 1, Lip(WELL_LIP_A, BORDER, WELL_LINE_A))
+        Stroke(gr, x + 0.5, y + 0.5, w - 1, h - 1, WELL_R, 1, Lip(WELL_LIP_A, BORDER, WELL_LINE_A), LIGHT_ANGLE)
     }
     lb.GetPos(&x, &y, &w, &h)
-    Stroke(gr, x - 0.5, y - 0.5, w + 1, h + 1, CARD_R / 2 + 0.5, 1, Lip(CARD_LIP_A, CARD_LINE, CARD_LINE_A))
-}
-
-Lip(litA, rgb, a) => [["FFFFFF", litA, 0], ["FFFFFF", litA, 0.42], [rgb, a, 0.58], [rgb, a, 1]]   ; white bottom/left, rgb top/right
-
-; Line brush across x, y, w, h at `angle`; stops: [[rgb, alpha, position 0-1], ...] (first 0, last 1).
-FadeBrush(x, y, w, h, angle, stops) {
-    rc := Buffer(16), NumPut("float", x - 1, "float", y - 1, "float", w + 2, "float", h + 2, rc)   ; 1px larger: no edge seam
-    DllCall("gdiplus\GdipCreateLineBrushFromRectWithAngle", "ptr", rc, "uint", 0, "uint", 0, "float", angle
-        , "int", 1, "int", 3, "ptr*", &br := 0)                    ; angle follows the rect's diagonal, WrapModeTileFlipXY
-    n := BlendBufs(stops, &cols, &pos)
-    DllCall("gdiplus\GdipSetLinePresetBlend", "ptr", br, "ptr", cols, "ptr", pos, "int", n)
-    return br
-}
-
-; Elliptical radial gradient centred at cx, cy; stops as FadeBrush, position = distance from the centre.
-RadialFill(gr, cx, cy, rx, ry, stops) {
-    DllCall("gdiplus\GdipCreatePath", "int", 0, "ptr*", &path := 0)
-    DllCall("gdiplus\GdipAddPathEllipse", "ptr", path, "float", cx - rx, "float", cy - ry, "float", 2 * rx, "float", 2 * ry)
-    DllCall("gdiplus\GdipCreatePathGradientFromPath", "ptr", path, "ptr*", &br := 0)
-    n := BlendBufs(stops, &cols, &pos, true)   ; path-gradient blends run from the outline (0) to the centre (1)
-    DllCall("gdiplus\GdipSetPathGradientPresetBlend", "ptr", br, "ptr", cols, "ptr", pos, "int", n)
-    DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", path)
-    DllCall("gdiplus\GdipDeleteBrush", "ptr", br), DllCall("gdiplus\GdipDeletePath", "ptr", path)
-}
-
-; Path gradient from the outline (alpha aEdge) to a copy shrunk by fx, fy around the centre (aIn).
-EdgeFade(gr, path, rgb, aEdge, aIn, fx, fy, bell := false) {
-    DllCall("gdiplus\GdipCreatePathGradientFromPath", "ptr", path, "ptr*", &br := 0)
-    DllCall("gdiplus\GdipSetPathGradientCenterColor", "ptr", br, "uint", Argb(rgb, aIn))
-    DllCall("gdiplus\GdipSetPathGradientSurroundColorsWithCount", "ptr", br, "uint*", Argb(rgb, aEdge), "int*", 1)   ; last colour repeats
-    DllCall("gdiplus\GdipSetPathGradientFocusScales", "ptr", br, "float", Max(fx, 0), "float", Max(fy, 0))
-    if bell
-        DllCall("gdiplus\GdipSetPathGradientSigmaBlend", "ptr", br, "float", 1, "float", 1)   ; soft, blur-like falloff
-    DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", path)
-    DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
-}
-
-; Rounded outline drawn with a pen whose colour runs along LIGHT_ANGLE.
-Stroke(gr, x, y, w, h, r, width, stops) {
-    path := RoundPath(x, y, w, h, r), br := FadeBrush(x, y, w, h, LIGHT_ANGLE, stops)
-    DllCall("gdiplus\GdipCreatePen2", "ptr", br, "float", width, "int", 2, "ptr*", &pen := 0)   ; UnitPixel
-    DllCall("gdiplus\GdipDrawPath", "ptr", gr, "ptr", pen, "ptr", path)
-    DllCall("gdiplus\GdipDeletePen", "ptr", pen), DllCall("gdiplus\GdipDeleteBrush", "ptr", br), DllCall("gdiplus\GdipDeletePath", "ptr", path)
-}
-
-; [[rgb, alpha, pos], ...] -> ARGB and float buffers for a preset blend; flip reverses positions.
-BlendBufs(stops, &cols, &pos, flip := false) {
-    n := stops.Length, cols := Buffer(4 * n), pos := Buffer(4 * n)
-    for i, s in stops {
-        o := 4 * (flip ? n - i : i - 1)
-        NumPut("uint", Argb(s[1], s[2]), cols, o), NumPut("float", flip ? 1 - s[3] : s[3], pos, o)
-    }
-    return n
-}
-
-RoundPath(x, y, w, h, r) {   ; GDI+ rounded-rect path; caller deletes it
-    DllCall("gdiplus\GdipCreatePath", "int", 0, "ptr*", &p := 0), d := 2 * r   ; FillModeAlternate
-    for a in [180, 270, 0, 90]               ; corners clockwise from the top-left
-        DllCall("gdiplus\GdipAddPathArc", "ptr", p, "float", a = 0 || a = 270 ? x + w - d : x
-            , "float", a < 180 ? y + h - d : y, "float", d, "float", d, "float", a, "float", 90)
-    DllCall("gdiplus\GdipClosePathFigure", "ptr", p)
-    return p
-}
-
-Fill(gr, br, w, h, del := true) {   ; fill 0, 0, w, h (within the clip); deletes the brush unless del = false
-    DllCall("gdiplus\GdipFillRectangleI", "ptr", gr, "ptr", br, "int", 0, "int", 0, "int", w, "int", h)
-    if del
-        DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
-}
-
-NewBitmap(w, h) => (DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", w, "int", h, "int", 0, "int", 0x26200A   ; 32bppARGB
-    , "ptr", 0, "ptr*", &bm := 0), bm)
-
-Canvas(bm, dc := 0) {   ; antialiased GDI+ graphics on bm (or on dc); caller deletes it
-    if dc
-        DllCall("gdiplus\GdipCreateFromHDC", "ptr", dc, "ptr*", &gr := 0)
-    else
-        DllCall("gdiplus\GdipGetImageGraphicsContext", "ptr", bm, "ptr*", &gr := 0)
-    DllCall("gdiplus\GdipSetSmoothingMode", "ptr", gr, "int", 4)     ; AntiAlias
-    DllCall("gdiplus\GdipSetPixelOffsetMode", "ptr", gr, "int", 4)   ; HighQuality: pixel i spans i..i+1
-    return gr
-}
-
-ToHbm(bm) {   ; GDI+ bitmap -> premultiplied 32bpp HBITMAP; disposes bm
-    DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "ptr", bm, "ptr*", &hbm := 0, "uint", 0)
-    DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
-    return hbm
+    Stroke(gr, x - 0.5, y - 0.5, w + 1, h + 1, CARD_R / 2 + 0.5, 1, Lip(CARD_LIP_A, CARD_LINE, CARD_LINE_A), LIGHT_ANGLE)
 }
 
 ; Frosted grain: 128x128 tile of faint black / white specks as a texture brush (0 = off).

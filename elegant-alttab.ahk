@@ -4,7 +4,8 @@
 ; tiling WMs like GlazeWM cloak hidden workspaces, so this == "current desktop / workspace".
 ; Hold Alt, press Tab / Shift+Tab to move, release Alt to switch, Esc to cancel.
 
-; ===== Settings (edit these, then right-click tray icon > Reload Script) =====
+; ===== Settings: built-in defaults. Tray icon > Settings… saves overrides to settings.ini, which wins. =====
+; (Or edit these, then right-click tray icon > Reload Script.)
 FONT_NAME  := "Segoe UI"    ; ships with Windows; CJK titles fall back automatically
 FONT_SIZE  := 16      ; text size in points
 LIST_WIDTH := 700     ; list width in pixels
@@ -12,11 +13,13 @@ MAX_ROWS   := 15      ; longer lists scroll
 PREVIEW_W  := 800    ; live preview width in pixels, right of the list (0 = no preview)
 SEPARATOR  := "   —   "  ; between window title and process name
 IMG_DIR    := "images" ; folder of the mood images, relative to this script
-IMG_PREFIX := "chill" ; mood images in IMG_DIR: <prefix>_few.png (1-2 windows),
-                      ; <prefix>_some.png (3-7), <prefix>_many.png (8+). Clean new ones: python cutout.py images/dog_*.png
+IMG_PREFIX := "chill" ; mood images in IMG_DIR: <prefix>_few.png, <prefix>_some.png, <prefix>_many.png
+SOME_FROM  := 3       ; window counts: few = 1 .. SOME_FROM-1, some = SOME_FROM .. MANY_FROM-1,
+MANY_FROM  := 8       ; many = MANY_FROM and up (2 <= SOME_FROM < MANY_FROM <= 30)
 IMG_SIZE   := 100     ; mood image in the bottom-left corner, in pixels
 IMG_ROWS   := 12      ; pane is tall enough that the list covers the image only beyond this many windows
 WM_PROCESS := ""      ; optional: script exits when this process is gone, e.g. "glazewm.exe" ("" = never)
+SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
 ; ==========================================================================
 
 CoordMode "Mouse", "Screen"
@@ -160,21 +163,9 @@ UpdatePreview(src := 0) {
     DllCall("dwmapi\DwmUpdateThumbnailProperties", "ptr", thumb, "ptr", p)
 }
 
-; Image file -> sz x sz 32bpp HBITMAP via GDI+ HighQualityBicubic (built-in "w24 h24" is
-; nearest-neighbor and drops thin lines). Transparent background = alpha kept. 0 = failed.
-ScaledBitmap(file, sz) {
-    if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", file, "ptr*", &src := 0)
-        return 0                    ; missing or unreadable
-    DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", sz, "int", sz, "int", 0, "int", 0x26200A, "ptr", 0, "ptr*", &dst := 0)   ; 32bppARGB
-    DllCall("gdiplus\GdipGetImageGraphicsContext", "ptr", dst, "ptr*", &gr := 0)
-    DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 7)   ; HighQualityBicubic
-    DllCall("gdiplus\GdipSetPixelOffsetMode", "ptr", gr, "int", 4)     ; HighQuality
-    DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", src, "int", 0, "int", 0, "int", sz, "int", sz)
-    DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "ptr", dst, "ptr*", &hbm := 0, "uint", 0)
-    DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
-    DllCall("gdiplus\GdipDisposeImage", "ptr", dst), DllCall("gdiplus\GdipDisposeImage", "ptr", src)
-    return hbm
-}
+; Image file -> sz x sz 32bpp HBITMAP (FitBitmap in gdip-helpers.ahk: bicubic, aspect kept).
+; Transparent background = alpha kept. 0 = failed.
+ScaledBitmap(file, sz) => (bm := FitBitmap(file, sz)) ? ToHbm(bm) : 0
 
 ; Owner-drawn list row: selection is a rounded pale-blue pill, process name muted.
 DrawItem(wParam, lParam, *) {
@@ -242,7 +233,7 @@ ShowList() {
     minH := 2 * g.MarginY + IMG_ROWS * itemH + 4 + 8 + IMG_SIZE   ; IMG_ROWS rows + border + gap + image
     if ch < minH
         g.Show("Hide w" cw " h" (ch := minH))
-    n := wins.Length, k := n <= 2 ? 1 : n <= 7 ? 2 : 3   ; few / some / many
+    n := wins.Length, k := MoodOf(n)  ; few / some / many
     if c := imgs[k] {
         c.Move(, ch - g.MarginY - IMG_SIZE), c.Visible := true
         moodNote.Text := n " window" (n = 1 ? "" : "s") " · " MOOD_NOTES[k]
@@ -326,3 +317,6 @@ IsSwitchable(hwnd) {
     DllCall("dwmapi\DwmGetWindowAttribute", "ptr", hwnd, "uint", 14, "uint*", &cloaked, "uint", 4)
     return !cloaked
 }
+
+; The Settings… panel and settings.ini (also brings the GDI+ helpers, FitBitmap among them).
+#Include %A_LineFile%\..\settings-panel.ahk

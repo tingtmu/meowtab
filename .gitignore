@@ -3,3 +3,5 @@ __pycache__/
 *.bak-*
 *.preview.png
 .claude/
+settings.ini
+images/custom_*
