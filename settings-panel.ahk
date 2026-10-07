@@ -1,4 +1,5 @@
-; Settings… panel for peek-alttab.ahk and elegant-alttab.ahk (#Included by both; tray menu > Settings…):
+; Settings… panel for peek-alttab.ahk and elegant-alttab.ahk (#Included by both; tray menu > Settings…, or
+; the desktop icon, desktop-icon.ahk, which starts the script with /settings):
 ; mood images and their window ranges, how far the image peeks (peek only), the list font. Built when
 ; opened and destroyed when closed, so nothing of it exists, runs or listens while closed, and Alt+Tab
 ; never waits on it. Values go to settings.ini (settings-store.ahk); Save reloads the script to apply them.
@@ -7,6 +8,7 @@
 #Include %A_LineFile%\..\settings-store.ahk
 #Include %A_LineFile%\..\settings-paint.ahk
 #Include %A_LineFile%\..\cutout.ahk
+#Include %A_LineFile%\..\desktop-icon.ahk
 
 ; The switcher's palette (same values as the glass constants in peek-alttab.ahk), one restrained accent.
 global LOOK := {bgTop: "FCF9F4", bg: "FAF6EF", bgBot: "F5EEE2", card: "FDFBF7", line: "E6DAC6", border: "D9CBB4"
@@ -14,12 +16,14 @@ global LOOK := {bgTop: "FCF9F4", bg: "FAF6EF", bgBot: "F5EEE2", card: "FDFBF7", 
     , pillHi: "EEF5FA", accent: "6F93B6", shadow: "78350F", wellTop: "EFE6D6", wellBot: "F8F2E7", face: "Segoe UI"}
 global pnl := 0                                       ; the open panel's state; 0 = closed
 A_TrayMenu.Insert("1&", "Settings…", SettingsOpen)
-A_TrayMenu.Insert("2&")
+A_TrayMenu.Insert("2&", "Desktop icon", DesktopIconToggle)
+A_TrayMenu.Insert("3&")
 A_TrayMenu.Default := "Settings…"                     ; double-click the tray icon
 if A_IsCompiled                                       ; an exe's menu is just Suspend, Pause, Exit: add Reload before Exit
     A_TrayMenu.Insert(DllCall("GetMenuItemCount", "ptr", A_TrayMenu.Handle) "&", "&Reload Script", (*) => Reload())
 else if FileExist(AppDir() "assets\peek-alttab.ico")  ; the exe carries the icon itself
     TraySetIcon AppDir() "assets\peek-alttab.ico"
+DesktopIconStart()                                    ; check mark, "/settings", the exe's first-run question
 
 Dpx(v) => Round(v * A_ScreenDPI / 96)                 ; 96-dpi layout units -> pixels
 

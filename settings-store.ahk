@@ -101,13 +101,17 @@ SettingsSet(k, v) {
     %k% := v
 }
 
+SettingsCreate(file) {   ; a new settings.ini starts as UTF-16, which keeps any font name intact
+    if !FileExist(file)
+        FileAppend "[settings]`n", file, "UTF-16"
+}
+
 ; Panel values (Map) -> settings.ini. A value equal to the built-in default removes its key; keys the panel
 ; doesn't edit (WM_PROCESS, LIST_WIDTH, ...) are left alone. "" = ok, else the error.
 SettingsWrite(vals) {
     file := SettingsFile()
     try {
-        if !FileExist(file)
-            FileAppend "[settings]`n", file, "UTF-16"        ; UTF-16 keeps any font name intact
+        SettingsCreate(file)
         for k, v in vals
             if v = SETTINGS_DEFAULTS[k]
                 IniDelete file, "settings", k
@@ -118,7 +122,8 @@ SettingsWrite(vals) {
     return ""
 }
 
-; Reset: remove the panel's keys; the file goes too unless it holds other lines (e.g. WM_PROCESS). "" = ok.
+; Reset: remove the panel's keys; the file goes too unless it holds other lines (e.g. WM_PROCESS, or the
+; [state] section the desktop icon's first-run question leaves). "" = ok.
 SettingsReset() {
     if !FileExist(file := SettingsFile())
         return ""

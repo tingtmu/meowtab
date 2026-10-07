@@ -45,7 +45,7 @@ Run **only one** of these at a time. Both replace Alt+Tab, and each comes as an 
 | `peek-alttab` (main) | Glass look. The image peeks over the pane's top-left edge from behind, slides up when the pane opens, and glides when the window count changes. |
 | `elegant-alttab` | Simpler pane. The image sits inside the pane's bottom-left corner. |
 
-`alttab-glass.ahk`, `gdip-helpers.ahk`, `cutout.ahk` and the `settings-*.ahk` files are helpers that the two scripts include. They are not meant to be run directly.
+`alttab-glass.ahk`, `gdip-helpers.ahk`, `cutout.ahk`, `desktop-icon.ahk` and the `settings-*.ahk` files are helpers that the two scripts include. They are not meant to be run directly.
 
 ## Requirements
 
@@ -61,6 +61,8 @@ Pick one of these:
 1. Download [peek-alttab.zip](https://github.com/tingtmu/peek-alttab/releases/latest/download/peek-alttab.zip) from the latest release.
 2. Right-click it > **Extract All…**, into a folder of your own such as Documents (not Program Files: your settings and pictures are saved next to the exe).
 3. Double-click `peek-alttab.exe`. Hold Alt and press Tab.
+
+The first time, the exe asks whether to put an icon on the desktop (and remembers your answer in `settings.ini`). Clicking that icon starts the switcher, or reloads it if it is already running, and opens the [settings panel](#settings-panel), so you needn't look for the tray icon. You can add or remove it any time with the tray menu's **Desktop icon**.
 
 The exe isn't code-signed, so the first time Windows may say "Windows protected your PC" (SmartScreen, "unrecognized app"). Click **More info**, then **Run anyway**. It is built from the scripts in this repo with the official AutoHotkey compiler; see [Building the exe](#building-the-exe) to build it yourself.
 
@@ -78,7 +80,7 @@ git clone https://github.com/tingtmu/peek-alttab.git
 
 Then double-click `peek-alttab.ahk`.
 
-Double-click the tray icon, a sleepy cat (or right-click it > **Settings…**), to open the [settings panel](#settings-panel). Right-click it to reload or exit.
+Double-click the tray icon, a sleepy cat (or right-click it > **Settings…**), to open the [settings panel](#settings-panel). Right-click it to reload or exit, or to tick **Desktop icon**, which puts a shortcut on your desktop that opens the panel.
 
 ### Run at login
 
@@ -126,7 +128,7 @@ The first Tab picks the previous window (the one you were in last). Apps that sh
 
 ## Settings panel
 
-Double-click the tray icon, or right-click it and choose **Settings…**.
+Double-click the tray icon, or right-click it and choose **Settings…**. The **desktop icon** (tray menu > **Desktop icon**) opens it too. It runs the switcher with `/settings`; without that switch, as at login, the switcher starts silently.
 
 ![Settings panel](docs/settings.png)
 
@@ -191,7 +193,7 @@ The block at the top of each script holds the built-in defaults. `settings.ini` 
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\peek-alttab\` and `dist\peek-alttab.zip`. Each exe's name, version and icon come from the `;@Ahk2Exe-…` lines at the top of its script; the icon, `assets/peek-alttab.ico`, is made from `images/chill_few.png`. The build stops if the zip would hold anything beyond the exes, the `chill_*` images, this README and the license.
+It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\peek-alttab\` and `dist\peek-alttab.zip`. Each exe's name, version and icon come from the `;@Ahk2Exe-…` lines at the top of its script; the icon, `assets/peek-alttab.ico`, is made from `images/chill_few.png`, with its 16 to 32 px sizes drawn pixel by pixel so the tray icon stays sharp. The build stops if the zip would hold anything beyond the exes, the `chill_*` images, this README and the license.
 
 The **Clean background** code is C (`cutout.c`) compiled to machine code that lives in `cutout-mcode.ahk`, so neither the scripts nor the exes need a compiler or any extra install. `build-mcode.ps1` regenerates that file from `cutout.c` with a pinned, hash-checked [Zig](https://ziglang.org) (downloaded into `build\`, nothing is installed); run it after editing `cutout.c`. CI checks the file is up to date.
 

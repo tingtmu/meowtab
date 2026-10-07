@@ -60,12 +60,11 @@ CutoutStart(src) {
         return j
     if !entry := CutoutEntry()
         return CutoutSay(20, j, "machine code unavailable")
-    n := j.w * j.h
     try {
-        j.scratch := Buffer(64 * n + 1048576)          ; what cutout.c may carve out (see its setup)
+        j.scratch := Buffer(CutoutScratch(j.w, j.h))
         j.orig := ""
         if j.w = j.h                                  ; only a square picture can come out unchanged
-            j.orig := Buffer(4 * n), DllCall("RtlMoveMemory", "ptr", j.orig, "ptr", j.px, "uptr", 4 * n)
+            j.orig := Buffer(j.px.Size), DllCall("RtlMoveMemory", "ptr", j.orig, "ptr", j.px, "uptr", j.px.Size)
     } catch MemoryError
         return CutoutSay(20, j, "out of memory")
     j.buf := Buffer(56, 0), j.src := src               ; CutoutJob, layout in cutout.c
@@ -74,6 +73,15 @@ CutoutStart(src) {
         return CutoutSay(20, j, "couldn't start a thread")
     j.thread := th
     return j
+}
+
+; Scratch bytes cutout.c may carve (setup + carve_edt): 15 bytes per pixel, the padded distance plane (4 bytes
+; per pixel of (w + 2P) x (h + 2P), P = closing radius + 2, the radius at most 4 * min(longest side, 15600) / 780
+; + 1), its row arrays, and slack for the histograms and alignment. Never more than the old 64 bytes per pixel
+; + 1 MiB, so the outcome can only differ from a roomy buffer by cutout.c's status 20 (checked in its carve).
+CutoutScratch(w, h) {
+    p := 4 * Min(Max(w, h, 39), 15600) // 780 + 4, pw := w + 2 * p
+    return Min(64 * w * h + 1048576, 15 * w * h + 4 * pw * (h + 2 * p) + 12 * pw + 65536)
 }
 
 ; Picture -> {w, h, px}: B,G,R,A rows without padding, EXIF turned upright; or a result with status 21 / 22.
