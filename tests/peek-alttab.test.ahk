@@ -1,5 +1,5 @@
 #Requires AutoHotkey v2.0
-; Integration test for peek-alttab.ahk. Opens 4 temporary windows on the
+; Integration test for peek-alttab.ahk. Opens 5 temporary windows on the
 ; current desktop (a tiling WM may tile them briefly), then checks ordering.
 ; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tests\peek-alttab.test.ahk | more
 #Include %A_LineFile%\..\..\peek-alttab.ahk
@@ -22,12 +22,28 @@ Act(h) {
 ; Bring to top of Z-order without activating: what a tiling WM's re-tile can do.
 Raise(h) => DllCall("SetWindowPos", "ptr", h, "ptr", 0, "int", 0, "int", 0, "int", 0, "int", 0, "uint", 0x13)
 
+; Step / Finish make their thread Critical, as their hotkeys need. Called straight from this thread they leave
+; it so, and then no hotkey or timer (WatchAlt, the mouse) could run: Wait sleeps with it off again.
+Wait(ms) => (Critical("Off"), Sleep(ms))
+
 TestOrder() {
     order := ""
     for h in CollectWindows()
         if names.Has(h)
             order .= names[h] " "
     return Trim(order)
+}
+
+; Send the pane a left click (WM_LBUTTONDOWN + UP) on window hwnd's tile: its centre, or with onX its close button.
+ClickTile(hwnd, onX := false) {
+    for i, w in wins
+        if w = hwnd {
+            t := tiles[i], y := TileY(t)
+            x := onX ? t.x + t.w - CloseW(t) // 2 : t.x + t.w // 2, y += onX ? grid.hdr // 2 : grid.th // 2
+            DllCall("SendMessageW", "ptr", g.Hwnd, "uint", 0x201, "ptr", 1, "ptr", y << 16 | x)
+            return DllCall("SendMessageW", "ptr", g.Hwnd, "uint", 0x202, "ptr", 0, "ptr", y << 16 | x)
+        }
+    FileAppend "     (no tile for " names.Get(hwnd, hwnd) ")`n", "*"
 }
 
 guis := [], h := Map()
@@ -46,33 +62,63 @@ Check("baseline order", TestOrder(), "A B D C")
 Raise(h["C"]), Raise(h["D"]), Sleep(100)   ; reshuffle Z-order without activation
 Check("order survives Z-order reshuffle", TestOrder(), "A B D C")
 
-Step(1), Finish(true), Sleep(300)
+Step(1), Finish(true), Wait(300)
 Check("Alt+Tab from A goes to B", names.Get(WinExist("A"), "?"), "B")
 
 Raise(h["C"]), Sleep(100)
-Step(1), Finish(true), Sleep(300)
+Step(1), Finish(true), Wait(300)
 Check("Alt+Tab again returns to A", names.Get(WinExist("A"), "?"), "A")
 
-Step(1), Step(1), Finish(true), Sleep(300)
+Step(1), Step(1), Finish(true), Wait(300)
 Check("Alt+Tab+Tab goes to 3rd (D)", names.Get(WinExist("A"), "?"), "D")
 
-Step(1), shown := thumb, Finish(false)    ; same line: WatchAlt can't end it in between
-Check("preview thumbnail registered while cycling", shown != 0, true)
-Check("preview thumbnail released after Finish", thumb, 0)
+Step(1), live := thumbs.Length, Finish(false), Wait(0)   ; same line: WatchAlt can't end it in between
+Check("preview thumbnails registered while cycling", live > 0, true)
+Check("preview thumbnails released after Finish", thumbs.Length, 0)
 
 t := Gui("+ToolWindow", "alttab-test tool")   ; not Alt+Tab-eligible, so not in the list
 t.Show("w200 h100"), guis.Push(t)
 Act(t.Hwnd)                                ; recency of A-D is now: D A B C
-Step(1), Finish(true), Sleep(300)
+Step(1), Finish(true), Wait(300)
 Check("Alt+Tab from non-listed window goes to 1st (D)", names.Get(WinExist("A"), "?"), "D")
 
 SendLevel 1                                ; let our own hotkeys see these keys
 SendEvent "{LAlt down}"                    ; held, so WatchAlt keeps the list open
-Step(1), SendEvent("{Blind}{Down}"), Sleep(100)   ; recency D A B C: Tab -> A, Alt+Down -> B
+Step(1), Wait(50), SendEvent("{Blind}{Right}"), Wait(100)   ; recency D A B C: Tab -> A, Alt+Right -> B
 SendEvent "{LAlt up}"
 SendLevel 0
 Sleep 300                                  ; WatchAlt sees Alt released and switches
-Check("Alt+Tab, Alt+Down goes to 3rd (B)", names.Get(WinExist("A"), "?"), "B")
+Check("Alt+Tab, Alt+Right goes to 3rd (B)", names.Get(WinExist("A"), "?"), "B")
+
+SendLevel 1
+SendEvent "{LAlt down}"
+Step(1), ClickTile(h["C"]), Wait(200)      ; recency B D A C: the pane opens on D; a click on C switches at once
+open := cycling
+SendEvent "{LAlt up}"
+SendLevel 0
+Sleep 300
+Check("click on a tile switches to it (C)", names.Get(WinExist("A"), "?"), "C")
+Check("the click closed the pane", open, false)
+
+e := Gui(, "alttab-test E"), e.Show("w300 h200"), guis.Push(e), names[e.Hwnd] := "E"
+Act(e.Hwnd)                                ; recency E C B D A
+SendLevel 1
+SendEvent "{LAlt down}"
+Step(1), n := wins.Length, ClickTile(e.Hwnd, true), Wait(400)   ; selection on C; E's close button
+Check("click on X closes that window", DllCall("IsWindowVisible", "ptr", e.Hwnd), 0)
+Check("the pane stays open, one tile less", cycling " " wins.Length, "1 " (n - 1))
+Check("the selection stays on its window (C)", names.Get(wins[idx], "?"), "C")
+SendEvent "{LAlt up}"
+SendLevel 0
+Sleep 300
+Check("then releasing Alt switches to it (C)", names.Get(WinExist("A"), "?"), "C")
+
+Finish(false), Wait(0)                     ; Alt+Down / Up: a narrow work area wraps A-D two by two
+wins := [h["A"], h["B"], h["C"], h["D"]], idx := 1, cycling := true
+GridLayout(800, 1080, 0), surf := SurfaceMake(grid.w, grid.h)
+StepRow(1), down := idx, StepRow(1), last := idx, StepRow(-1), up := idx, StepRow(-1), first := idx
+PaneFree(), cycling := false, Wait(0)
+Check("Alt+Down / Up move between two rows, none past the ends", grid.rows.Length ": " down " " last " " up " " first, "2: 3 3 1 1")
 
 for w in guis
     w.Destroy()

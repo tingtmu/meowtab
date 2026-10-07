@@ -11,7 +11,7 @@
 
 ; ===== Settings: built-in defaults. Tray icon > Settings… saves overrides to settings.ini, which wins. =====
 ; (Or edit these, then right-click tray icon > Reload Script.)
-FONT_NAME  := "Segoe UI"    ; ships with Windows; CJK titles fall back automatically
+FONT_NAME  := FontInstalled("Noto Sans TC") ? "Noto Sans TC" : "Segoe UI"   ; Latin + Traditional Chinese; else Segoe UI (CJK falls back)
 FONT_SIZE  := 16      ; text size in points
 LIST_WIDTH := 700     ; list width in pixels
 MAX_ROWS   := 15      ; longer lists scroll

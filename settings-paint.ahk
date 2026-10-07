@@ -170,10 +170,11 @@ PanelHintText() {   ; hovered element's hint, else the last message, else the st
 }
 
 ; Peek scene j (1 = a single window at PEEK_MIN, 2 = many windows at PEEK_MAX): the picture behind the top
-; edge of a small pane, raised by the same rule as ShowPeek (share of the ArtSpan rows above the edge).
+; edge of a small pane, raised by the same rule as ShowPeek (share of the ArtSpan rows above the edge). The
+; pane looks like Windows 11's Alt+Tab: light grey, its first tiles in a row (the first one selected).
 PaintScene(j, dc, w, h, st) {
     c := pnl.cards[j = 1 ? 1 : 3], share := pnl.peek[j] / 100, lab := Dpx(24), sh := h - lab, r := Dpx(12)
-    edge := sh - Dpx(30), d := Dpx(72), f := d / IMG_SIZE, px := Dpx(22)
+    edge := sh - Dpx(42), d := Dpx(72), f := d / IMG_SIZE, px := Dpx(22)
     gr := Canvas(0, dc), well := RoundPath(0.5, 0.5, w - 1, sh - 1, r)   ; a soft well, like the cards'
     br := FadeBrush(0, 0, w, sh, 90, [[LOOK.wellTop, 140, 0], [LOOK.wellBot, 80, 1]])
     DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", well), DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
@@ -184,13 +185,18 @@ PaintScene(j, dc, w, h, st) {
         DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", c.big, "int", px + Dpx(12), "int", top, "int", d, "int", d)
     }
     pane := RoundPath(px + 0.5, edge + 0.5, w, sh, Dpx(8))   ; the pane's top-left corner; the well clips the rest
-    br := FadeBrush(px, edge, w - px, sh - edge, 90, [[LOOK.bgTop, 255, 0], [LOOK.bg, 255, 0.6], [LOOK.bgBot, 255, 1]])
+    br := FadeBrush(px, edge, w - px, sh - edge, 90, [["F3F3F3", 255, 0], ["EEEEEE", 255, 1]])   ; Win11 light grey, opaque
     DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", pane), DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
     DllCall("gdiplus\GdipDeletePath", "ptr", pane)
-    Ring(gr, px + 0.5, edge + 0.5, w, sh, Dpx(8), LOOK.border, 255)
-    Ring(gr, px + 1.5, edge + 1.5, w, sh, Dpx(7), "FFFFFF", 200)
-    FillRound(gr, px + Dpx(12), edge + Dpx(10), (w - px) * 0.5, Dpx(8), Dpx(4), Argb(LOOK.pill, 255))   ; list rows
-    FillRound(gr, px + Dpx(12), edge + Dpx(22), (w - px) * 0.34, Dpx(4), Dpx(2), Argb(LOOK.line, 220))
+    Ring(gr, px + 0.5, edge + 0.5, w, sh, Dpx(8), "E5E5E5", 255)
+    for k in [0, 1, 2] {   ; tiles: app dot + title bar over a thumbnail block; the first one is selected
+        tx := px + Dpx(10 + 62 * k), ty := edge + Dpx(5)
+        Disc(gr, tx + Dpx(9), ty + Dpx(9), Dpx(2.5), Argb("8E8E8E", 255))
+        FillRound(gr, tx + Dpx(15), ty + Dpx(7), Dpx(26 - 5 * k), Dpx(4), Dpx(2), Argb("B4B4B4", 255))
+        FillRound(gr, tx + Dpx(5), ty + Dpx(15), Dpx(44), Dpx(12), Dpx(3), Argb("DDDDDD", 255))
+        if k = 0
+            Ring(gr, tx + 1, ty + 1, Dpx(54) - 2, Dpx(32) - 2, Dpx(6), LOOK.text, 235, Dpx(2))   ; selection: 2 px, dark
+    }
     DllCall("gdiplus\GdipResetClip", "ptr", gr)
     Stroke(gr, 0.5, 0.5, w - 1, sh - 1, r, 1, Lip(210, LOOK.border, 120))
     DllCall("gdiplus\GdipDeletePath", "ptr", well), DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
@@ -216,8 +222,9 @@ PaintSample(dc, w, h, st) {   ; one list row in the chosen font, selected like i
     FillRound(gr, 0.5, 0.5, w - 1, h - 1, Dpx(10), Argb(LOOK.card, 255))
     Stroke(gr, 0.5, 0.5, w - 1, h - 1, Dpx(10), 1, Lip(230, LOOK.line, 170))
     of := DllCall("SelectObject", "ptr", dc, "ptr", pnl.f["sample"], "ptr")
-    sz := Buffer(8), DllCall("GetTextExtentPoint32W", "ptr", dc, "str", "Ag", "int", 2, "ptr", sz)
-    title := "Visual Studio Code", tw := TextWidth(dc, title), DllCall("SelectObject", "ptr", dc, "ptr", of)
+    title := "Visual Studio Code", sz := Buffer(8), DllCall("GetTextExtentPoint32W", "ptr", dc, "str", title, "int", StrLen(title), "ptr", sz)
+    tw := NumGet(sz, 0, "int") + 2                    ; read before "Ag" reuses sz; +2: END_ELLIPSIS can want a pixel more
+    DllCall("GetTextExtentPoint32W", "ptr", dc, "str", "Ag", "int", 2, "ptr", sz), DllCall("SelectObject", "ptr", dc, "ptr", of)
     rh := NumGet(sz, 4, "int") + Dpx(12), y := (h - rh) / 2
     FillRound(gr, Dpx(6), y, w - Dpx(12), rh, Dpx(7), Argb(LOOK.pill, 255))
     Ring(gr, Dpx(6) + 0.5, y + 0.5, w - Dpx(12) - 1, rh - 1, Dpx(7), LOOK.pillRim, 255)
@@ -225,4 +232,21 @@ PaintSample(dc, w, h, st) {   ; one list row in the chosen font, selected like i
     x := Dpx(20)
     PanelText(dc, title, x, y, tw, rh, pnl.f["sample"], LOOK.text)
     PanelText(dc, "   —   視窗 · ウィンドウ", x + tw, y, w - x - tw - Dpx(14), rh, pnl.f["sample"], LOOK.muted)
+}
+
+PaintTile(dc, w, h, st) {   ; peek's sample: one tile header (app icon + title) in the chosen font, selected like in Alt+Tab
+    gr := Canvas(0, dc), path := RoundPath(0.5, 0.5, w - 1, h - 1, Dpx(8))   ; the scene's pane: light grey, hairline
+    br := FadeBrush(0, 0, w, h, 90, [["F3F3F3", 255, 0], ["EEEEEE", 255, 1]])
+    DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", path)
+    DllCall("gdiplus\GdipDeleteBrush", "ptr", br), DllCall("gdiplus\GdipDeletePath", "ptr", path)
+    Ring(gr, 0.5, 0.5, w - 1, h - 1, Dpx(8), "E5E5E5", 255)
+    of := DllCall("SelectObject", "ptr", dc, "ptr", pnl.f["sample"], "ptr")
+    title := "小算盤 — Calculator", sz := Buffer(8), DllCall("GetTextExtentPoint32W", "ptr", dc, "str", title, "int", StrLen(title), "ptr", sz)
+    DllCall("SelectObject", "ptr", dc, "ptr", of)
+    tw := NumGet(sz, 0, "int") + 2, th := NumGet(sz, 4, "int"), rh := th + Dpx(10), y := (h - rh) / 2, x := Dpx(14), ic := Round(th * 0.7)
+    tx := x + Dpx(18) + ic, rw := Min(tx + tw + Dpx(10) - x, w - 2 * x)   ; the tile is as wide as its header, at most the strip
+    Ring(gr, x + 1, y + 1, rw - 2, rh - 2, Dpx(6), LOOK.text, 235, Dpx(2))   ; selection: 2 px, dark, like the scene's first tile
+    FillRound(gr, x + Dpx(10), y + (rh - ic) / 2, ic, ic, ic / 4, Argb("8E8E8E", 255))   ; app icon placeholder
+    DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
+    PanelText(dc, title, tx, y, x + rw - Dpx(10) - tx, rh, pnl.f["sample"], LOOK.text)
 }

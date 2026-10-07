@@ -1,6 +1,6 @@
 ; Settings… panel for peek-alttab.ahk and elegant-alttab.ahk (#Included by both; tray menu > Settings…, or
 ; the desktop icon, desktop-icon.ahk, which starts the script with /settings):
-; mood images and their window ranges, how far the image peeks (peek only), the list font. Built when
+; mood images and their window ranges, how far the image peeks (peek only), the font (list text, or tile titles in peek). Built when
 ; opened and destroyed when closed, so nothing of it exists, runs or listens while closed, and Alt+Tab
 ; never waits on it. Values go to settings.ini (settings-store.ahk); Save reloads the script to apply them.
 
@@ -77,13 +77,13 @@ PanelLayout(w) {
     pnl.hint := PanelAdd("hint", pad + Dpx(2), y, w - 2 * pad, Dpx(20), PaintHint), y += Dpx(20) + Dpx(18)
     if pnl.peek
         y := PanelLayoutPeek(w, pad, gap, y)
-    pnl.labels.Push(["LIST FONT", pad, y]), y += Dpx(26)
+    pnl.labels.Push([pnl.peek ? "TITLE FONT" : "LIST FONT", pad, y]), y += Dpx(26)   ; peek: its tiles' titles; elegant: its list
     pnl.ddl := pnl.gui.AddDropDownList("x" pad " y" y " w" Dpx(330) " r16")
     pnl.ddl.OnEvent("Change", PanelFontPick), pnl.ddl.GetPos(, , , &dh)
     PanelAdd("step", w - pad - Dpx(108), y + (dh - Dpx(28)) // 2, Dpx(108), Dpx(28), PaintStepper.Bind(4)
-        , "Text size of the list, in points (10–24).", PanelStepClick.Bind(4)).i := 4
+        , "Text size of the " (pnl.peek ? "window titles" : "list") ", in points (10–24).", PanelStepClick.Bind(4)).i := 4
     y += dh + Dpx(12)
-    pnl.sample := PanelAdd("sample", pad, y, w - 2 * pad, Dpx(58), PaintSample), y += Dpx(58) + Dpx(26)
+    pnl.sample := PanelAdd("sample", pad, y, w - 2 * pad, Dpx(58), pnl.peek ? PaintTile : PaintSample), y += Dpx(58) + Dpx(26)
     PanelAdd("button", pad - Dpx(12), y, Dpx(150), Dpx(34), PaintButton.Bind("Reset to defaults", 0)
         , "Put the panel's settings back to the built-in ones (asks first).", PanelReset)
     PanelAdd("button", w - pad - Dpx(212), y, Dpx(100), Dpx(34), PaintButton.Bind("Cancel", 1), "Close without saving (Esc).", PanelClose)
@@ -95,12 +95,12 @@ PanelLayoutPeek(w, pad, gap, y) {   ; two scenes (1 window, many windows), a sli
     pnl.labels.Push(["PEEK HEIGHT", pad, y]), y += Dpx(26), sw := (w - 2 * pad - gap) // 2
     for j in [1, 2] {
         x := pad + (j - 1) * (sw + gap)
-        PanelAdd("scene", x, y, sw, Dpx(120), PaintScene.Bind(j))
-        PanelAdd("slider", x, y + Dpx(122), sw, Dpx(28), PaintSlider.Bind(j), j = 1
+        PanelAdd("scene", x, y, sw, Dpx(132), PaintScene.Bind(j))
+        PanelAdd("slider", x, y + Dpx(134), sw, Dpx(28), PaintSlider.Bind(j), j = 1
             ? "How much of the picture shows above the pane with a single window."
             : "How much shows once the window count reaches many (and beyond).").j := j
     }
-    return y + Dpx(150) + Dpx(20)
+    return y + Dpx(162) + Dpx(20)
 }
 
 ; An owner-drawn element: a focusable button, or a plain owner-drawn static for the display-only kinds.
