@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Compile peek-alttab.exe and elegant-alttab.exe and pack dist\peek-alttab.zip.
+    Compile meowtab.exe and meowtab-classic.exe and pack dist\meowtab.zip.
 
 .DESCRIPTION
     Needs AutoHotkey v2 (its AutoHotkey64.exe is the base of the exe) and Ahk2Exe, the official
@@ -23,7 +23,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $dist = Join-Path $root 'dist'
-$scripts = 'peek-alttab', 'elegant-alttab'
+$scripts = 'meowtab', 'meowtab-classic'
 
 function Find-First([string[]]$paths) {
     foreach ($p in $paths) { if ($p -and (Test-Path -LiteralPath $p)) { return (Resolve-Path -LiteralPath $p).Path } }
@@ -57,15 +57,15 @@ if (-not $Ahk2Exe) { $Ahk2Exe = Get-Ahk2Exe }
 Write-Host "Base:    $Base"
 Write-Host "Ahk2Exe: $Ahk2Exe"
 
-# Fresh dist\peek-alttab\ (the zip's top-level folder)
-$stage = Join-Path $dist 'peek-alttab'
+# Fresh dist\meowtab\ (the zip's top-level folder)
+$stage = Join-Path $dist 'meowtab'
 if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $stage 'images') | Out-Null
 
 foreach ($name in $scripts) {
     $out = Join-Path $stage "$name.exe"
     $argList = @('/in', "`"$root\$name.ahk`"", '/out', "`"$out`"", '/base', "`"$Base`"",
-        '/icon', "`"$root\assets\peek-alttab.ico`"", '/compress', '0', '/silent', 'verbose')
+        '/icon', "`"$root\assets\meowtab.ico`"", '/compress', '0', '/silent', 'verbose')
     $p = Start-Process $Ahk2Exe -ArgumentList $argList -Wait -PassThru -NoNewWindow
     if ($p.ExitCode -ne 0 -or -not (Test-Path $out)) { throw "Compiling $name.ahk failed (exit code $($p.ExitCode))." }
 }
@@ -75,20 +75,20 @@ Copy-Item (Join-Path $root 'images\chill_*.png') (Join-Path $stage 'images')
 Copy-Item (Join-Path $root 'README.md'), (Join-Path $root 'LICENSE') $stage
 
 # Entries added one by one: Windows PowerShell 5.1's Compress-Archive and CreateFromDirectory write
-# backslashes into entry names, which some unzip tools turn into flat "peek-alttab\..." files.
+# backslashes into entry names, which some unzip tools turn into flat "meowtab\..." files.
 Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
-$zipPath = Join-Path $dist 'peek-alttab.zip'
+$zipPath = Join-Path $dist 'meowtab.zip'
 $zip = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Create)
 try {
     Get-ChildItem $stage -Recurse -File | ForEach-Object {
-        $entry = 'peek-alttab/' + $_.FullName.Substring($stage.Length + 1).Replace('\', '/')
+        $entry = 'meowtab/' + $_.FullName.Substring($stage.Length + 1).Replace('\', '/')
         [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $_.FullName, $entry,
             [IO.Compression.CompressionLevel]::Optimal)
     }
 } finally { $zip.Dispose() }
 
 # Fail on anything outside the allowlist, so a private file can never reach a release
-$allowed = '^peek-alttab/((peek|elegant)-alttab\.exe|images/chill_[^/]+\.png|README\.md|LICENSE)$'
+$allowed = '^meowtab/((meowtab|meowtab-classic)\.exe|images/chill_[^/]+\.png|README\.md|LICENSE)$'
 $zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
 try { $bad = @($zip.Entries.FullName | Where-Object { $_ -notmatch $allowed }) } finally { $zip.Dispose() }
 if ($bad) { throw "Unexpected files in the zip: $($bad -join ', ')" }
@@ -97,4 +97,4 @@ Write-Host ''
 Get-ChildItem $stage -Recurse -File | ForEach-Object {
     '{0,-28} {1,10:N0} bytes' -f $_.FullName.Substring($stage.Length + 1), $_.Length
 }
-'{0,-28} {1,10:N0} bytes' -f 'dist\peek-alttab.zip', (Get-Item $zipPath).Length
+'{0,-28} {1,10:N0} bytes' -f 'dist\meowtab.zip', (Get-Item $zipPath).Length

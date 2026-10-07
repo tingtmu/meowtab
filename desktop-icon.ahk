@@ -1,11 +1,11 @@
-; Desktop icon for peek-alttab.ahk and elegant-alttab.ahk (#Included by settings-panel.ahk; tray menu > Desktop icon):
+; Desktop icon for meowtab.ahk and meowtab-classic.ahk (#Included by settings-panel.ahk; tray menu > Desktop icon):
 ; a shortcut on the desktop that starts the switcher (or reloads it, #SingleInstance Force) and opens its
 ; Settings panel through the /settings switch. The exe's first run offers to create it once. Everything
 ; here runs at startup or on a click; nothing stays behind (no timers or hooks while idle).
 
 global DESKTOP_DIR := A_Desktop                       ; where the shortcut goes (a test points it elsewhere)
 
-ScriptBase() => RegExReplace(A_ScriptName, "\.[^.]+$")   ; "peek-alttab" for peek-alttab.exe and .ahk
+ScriptBase() => RegExReplace(A_ScriptName, "\.[^.]+$")   ; "meowtab" for meowtab.exe and .ahk
 DesktopLink() => DESKTOP_DIR "\" ScriptBase() ".lnk"
 
 DesktopIconMark() {   ; the tray menu's check mark follows the shortcut file
@@ -23,7 +23,7 @@ DesktopIconToggle(*) {   ; tray menu click: remove the shortcut if there is one,
 ; The exe is its own target and icon. As .ahk the target is AutoHotkey running the script, with the
 ; shortcut icon from assets\ (AutoHotkey's own icon if that file isn't there). "" = ok, else the error.
 DesktopIconMake() {
-    name := ScriptBase(), desc := "Open " name " settings", ico := AppDir() "assets\peek-alttab.ico"
+    name := ScriptBase(), desc := "Open " name " settings", ico := AppDir() "assets\meowtab.ico"
     try {
         if A_IsCompiled
             FileCreateShortcut A_ScriptFullPath, DesktopLink(), A_ScriptDir, "/settings", desc, A_ScriptFullPath

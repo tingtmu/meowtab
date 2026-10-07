@@ -1,8 +1,8 @@
 #Requires AutoHotkey v2.0
-; Integration test for peek-alttab.ahk. Opens 5 temporary windows on the
+; Integration test for meowtab.ahk. Opens 5 temporary windows on the
 ; current desktop (a tiling WM may tile them briefly), then checks ordering.
-; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tests\peek-alttab.test.ahk | more
-#Include %A_LineFile%\..\..\peek-alttab.ahk
+; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tests\meowtab.test.ahk | more
+#Include %A_LineFile%\..\..\meowtab.ahk
 
 global fails := 0, names := Map()
 

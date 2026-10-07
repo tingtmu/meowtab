@@ -41,7 +41,7 @@ CutoutPoll() {
         }
         try r := CutoutEnd(j, j.src), done := j.done, done({changed: r.changed, msg: r.msg})
         catch as e                                    ; one failing job must not strand the others
-            OutputDebug "peek-alttab: cleaning " j.src " failed (" e.Message ")"
+            OutputDebug "meowtab: cleaning " j.src " failed (" e.Message ")"
     }
 }
 

@@ -1,10 +1,10 @@
 #Requires AutoHotkey v2.0
 #SingleInstance Force
-;@Ahk2Exe-SetName peek-alttab
-;@Ahk2Exe-SetDescription Windows 11 style Alt+Tab switcher with a peeking mood image
-;@Ahk2Exe-SetVersion 1.1.0
+;@Ahk2Exe-SetName meowtab
+;@Ahk2Exe-SetDescription MeowTab: Windows 11 style Alt+Tab with a peeking mood picture
+;@Ahk2Exe-SetVersion 0.1.0
 ;@Ahk2Exe-SetCopyright MIT`, tingwei
-;@Ahk2Exe-SetMainIcon assets\peek-alttab.ico
+;@Ahk2Exe-SetMainIcon assets\meowtab.ico
 ; Alt+Tab limited to the focused monitor. Windows cloaks windows on other virtual desktops, and
 ; tiling WMs like GlazeWM cloak hidden workspaces, so this == "current desktop / workspace".
 ; Hold Alt, press Tab / Shift+Tab or the arrow keys to move, release Alt to switch, Esc to cancel.

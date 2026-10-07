@@ -3,7 +3,7 @@
 ; defined here are set late in the auto-execute section, so SettingsLoad must not rely on them).
 
 ; Keys settings.ini may set: [name, kind, low, high]. A key applies only if the running script defines it
-; (PEEK_* exist in peek-alttab.ahk only, IMG_ROWS in elegant-alttab.ahk only). The panel edits the first seven.
+; (PEEK_* exist in meowtab.ahk only, IMG_ROWS in meowtab-classic.ahk only). The panel edits the first seven.
 SettingsSchema() => [["FONT_NAME", "font"], ["FONT_SIZE", "int", 10, 24], ["IMG_PREFIX", "prefix"]
     , ["SOME_FROM", "int", 2, 29], ["MANY_FROM", "int", 3, 30], ["PEEK_MIN", "num", 0.3, 1], ["PEEK_MAX", "num", 0.3, 1]
     , ["LIST_WIDTH", "int", 300, 4000], ["MAX_ROWS", "int", 3, 50], ["PREVIEW_W", "int", 0, 4000]
@@ -81,9 +81,9 @@ SettingsPair(lo, hi) {   ; lo must stay below hi, else both go back to their def
 
 SettingsWarn(issues) {
     for s in issues
-        OutputDebug "peek-alttab settings.ini: " s
+        OutputDebug "MeowTab settings.ini: " s
     TrayTip "settings.ini: " issues[1] (issues.Length > 1 ? "  (+" issues.Length - 1 " more)" : "")
-        . "`nThe built-in default is used instead.", "peek-alttab", "Icon! Mute"
+        . "`nThe built-in default is used instead.", "MeowTab", "Icon! Mute"
 }
 
 Num(v) => IsFloat(v) ? RTrim(RTrim(Format("{:.2f}", v), "0"), ".") : v   ; 0.3 rather than 0.29999999999999999
@@ -187,7 +187,7 @@ PendingClear() {   ; drop unsaved pictures (and any leftover backups of them)
     Loop Files A_ScriptDir "\" IMG_DIR "\custom_*.pending.png*"
         try FileDelete A_LoopFileFullPath
         catch as e
-            OutputDebug "peek-alttab: couldn't delete " A_LoopFileFullPath " (" e.Message ")"
+            OutputDebug "meowtab: couldn't delete " A_LoopFileFullPath " (" e.Message ")"
 }
 
 ; ----- Fonts -----

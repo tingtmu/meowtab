@@ -1,5 +1,5 @@
 ; Drawing for the Settings… panel (#Included by settings-panel.ahk; functions only). Light comes from the
-; bottom-left like the switcher's glass: lit edges are white, shadows fall up and to the right. Shapes are
+; bottom-left as on the original glass switcher: lit edges are white, shadows fall up and to the right. Shapes are
 ; GDI+ (antialiased); text is GDI DrawText, which falls back to CJK / symbol fonts by itself.
 
 ; ----- Fonts and text -----

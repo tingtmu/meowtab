@@ -1,4 +1,4 @@
-; Settings… panel for peek-alttab.ahk and elegant-alttab.ahk (#Included by both; tray menu > Settings…, or
+; Settings… panel for meowtab.ahk and meowtab-classic.ahk (#Included by both; tray menu > Settings…, or
 ; the desktop icon, desktop-icon.ahk, which starts the script with /settings):
 ; mood images and their window ranges, how far the image peeks (peek only), the font (list text, or tile titles in peek). Built when
 ; opened and destroyed when closed, so nothing of it exists, runs or listens while closed, and Alt+Tab
@@ -10,7 +10,7 @@
 #Include %A_LineFile%\..\cutout.ahk
 #Include %A_LineFile%\..\desktop-icon.ahk
 
-; The switcher's palette (same values as the glass constants in peek-alttab.ahk), one restrained accent.
+; The panel's palette (the warm ivory of the original glass switcher), one restrained accent.
 global LOOK := {bgTop: "FCF9F4", bg: "FAF6EF", bgBot: "F5EEE2", card: "FDFBF7", line: "E6DAC6", border: "D9CBB4"
     , text: "181614", muted: "6B6154", soft: "8C8174", faint: "D8CEBF", pill: "D6E6F2", pillRim: "BFD5E6"
     , pillHi: "EEF5FA", accent: "6F93B6", shadow: "78350F", wellTop: "EFE6D6", wellBot: "F8F2E7", face: "Segoe UI"}
@@ -21,8 +21,8 @@ A_TrayMenu.Insert("3&")
 A_TrayMenu.Default := "Settings…"                     ; double-click the tray icon
 if A_IsCompiled                                       ; an exe's menu is just Suspend, Pause, Exit: add Reload before Exit
     A_TrayMenu.Insert(DllCall("GetMenuItemCount", "ptr", A_TrayMenu.Handle) "&", "&Reload Script", (*) => Reload())
-else if FileExist(AppDir() "assets\peek-alttab.ico")  ; the exe carries the icon itself
-    TraySetIcon AppDir() "assets\peek-alttab.ico"
+else if FileExist(AppDir() "assets\meowtab.ico")      ; the exe carries the icon itself
+    TraySetIcon AppDir() "assets\meowtab.ico"
 DesktopIconStart()                                    ; check mark, "/settings", the exe's first-run question
 
 Dpx(v) => Round(v * A_ScreenDPI / 96)                 ; 96-dpi layout units -> pixels
@@ -39,7 +39,7 @@ SettingsOpen(*) {
         , note: PanelIssues()
         , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE
         , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0}
-    pnl.gui := g := Gui("-MinimizeBox -MaximizeBox -DPIScale", "peek-alttab settings")
+    pnl.gui := g := Gui("-MinimizeBox -MaximizeBox -DPIScale", "MeowTab settings")
     g.BackColor := LOOK.bg, g.MarginX := 0, g.MarginY := 0
     g.SetFont("s10 c" LOOK.text, LOOK.face)
     PanelFonts()
@@ -396,7 +396,7 @@ PanelSave(*) {   ; write settings.ini (+ pictures) and reload; nothing changed =
 PanelReset(*) {
     pnl.gui.Opt("+OwnDialogs")
     if MsgBox("Put the panel's settings back to the built-in defaults?`n`nYour pictures stay in the images folder, "
-        . "and lines you added to settings.ini yourself (such as WM_PROCESS) are kept.", "peek-alttab settings", "OKCancel Iconi Default2") != "OK"
+        . "and lines you added to settings.ini yourself (such as WM_PROCESS) are kept.", "MeowTab settings", "OKCancel Iconi Default2") != "OK"
         return
     if err := SettingsReset()
         return PanelFail(err)
@@ -405,5 +405,5 @@ PanelReset(*) {
 
 PanelFail(err) {
     pnl.gui.Opt("+OwnDialogs")
-    MsgBox "The settings couldn't be saved:`n" err, "peek-alttab settings", "Icon!"
+    MsgBox "The settings couldn't be saved:`n" err, "MeowTab settings", "Icon!"
 }

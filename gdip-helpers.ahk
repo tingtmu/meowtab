@@ -1,4 +1,4 @@
-; Small GDI+ / GDI helpers shared by alttab-glass.ahk and settings-panel.ahk (functions only, no globals).
+; Small GDI+ / GDI helpers shared by the alttab-*.ahk files and settings-panel.ahk (functions only, no globals).
 ; Colours are "RRGGBB" strings, alphas 0-255. The caller has GDI+ started.
 
 Argb(hex, a) => (a << 24) | Integer("0x" hex)
