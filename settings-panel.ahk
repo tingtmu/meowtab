@@ -15,6 +15,7 @@ global LOOK := {bgTop: "FCF9F4", bg: "FAF6EF", bgBot: "F5EEE2", card: "FDFBF7", 
     , text: "181614", muted: "6B6154", soft: "8C8174", faint: "D8CEBF", pill: "D6E6F2", pillRim: "BFD5E6"
     , pillHi: "EEF5FA", accent: "6F93B6", shadow: "78350F", wellTop: "EFE6D6", wellBot: "F8F2E7", face: "Segoe UI"}
 global pnl := 0                                       ; the open panel's state; 0 = closed
+global pnlK := 1                                      ; scale of the panel's sizes and fonts; below 1 only to fit a small screen
 A_TrayMenu.Insert("1&", "Settings…", SettingsOpen)
 A_TrayMenu.Insert("2&", "Desktop icon", DesktopIconToggle)
 A_TrayMenu.Insert("3&")
@@ -25,10 +26,10 @@ else if FileExist(AppDir() "assets\meowtab.ico")      ; the exe carries the icon
     TraySetIcon AppDir() "assets\meowtab.ico"
 DesktopIconStart()                                    ; check mark, "/settings", the exe's first-run question
 
-Dpx(v) => Round(v * A_ScreenDPI / 96)                 ; 96-dpi layout units -> pixels
+Dpx(v) => Round(v * A_ScreenDPI / 96 * pnlK)          ; 96-dpi layout units -> pixels
 
 SettingsOpen(*) {
-    global pnl
+    global pnl, pnlK
     if pnl
         return WinActivate(pnl.gui)
     DllCall("LoadLibrary", "str", "gdiplus"), si := Buffer(24, 0), NumPut("uint", 1, si)
@@ -39,11 +40,14 @@ SettingsOpen(*) {
         , note: PanelIssues()
         , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE
         , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0}
-    pnl.gui := g := Gui("-MinimizeBox -MaximizeBox -DPIScale", "MeowTab settings")
+    pnl.gui := g := Gui("-MinimizeBox -MaximizeBox -DPIScale")
     g.BackColor := LOOK.bg, g.MarginX := 0, g.MarginY := 0
-    g.SetFont("s10 c" LOOK.text, LOOK.face)
+    g.SetFont("s" 10 * pnlK " c" LOOK.text, LOOK.face)
     PanelFonts()
     h := PanelLayout(w := Dpx(624))
+    if pnlK = 1 && (k := PanelFit(w, h))              ; taller than the screen allows: build it again, scaled down to fit
+        return (PanelDiscard(), pnlK := k, SettingsOpen())
+    g.Title := "MeowTab settings"                     ; titled only now: a discarded first build is never taken for the panel
     for i in [1, 2, 3]
         PanelLoadCard(i)
     PanelSurface(w, h)
@@ -121,12 +125,23 @@ PanelIssues() {   ; what settings.ini had wrong at startup, for the hint line ("
     return n ? "settings.ini: " SETTINGS_ISSUES[1] (n > 1 ? "  (+" n - 1 " more)" : "") : ""
 }
 
-PanelShow(w, h) {   ; centred on the active window's monitor (or the cursor's)
+; 0 if the window (client w x h) fits the work area of the monitor it opens on, else the scale (0.5 to 1) that makes it fit.
+; Dpx(60) stays free for a tiling WM: GlazeWM floats and centres new windows in its workspace (the work area less its bar
+; and gaps, 78 px at 150 % on the author's setup) and clips them to it.
+PanelFit(w, h) {
+    g := pnl.gui
+    g.Show("Hide w" w " h" h), g.GetPos(, , , &wh), g.GetClientPos(, , , &ch)
+    mi := Buffer(40, 0), NumPut("uint", 40, mi), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
+    room := NumGet(mi, 32, "int") - NumGet(mi, 24, "int") - Dpx(60), nc := wh - ch   ; nc: caption and frame, which don't scale
+    return h + nc <= room ? 0 : Max((room - nc) / h, 0.5)
+}
+
+PanelShow(w, h) {   ; centred on the active window's monitor (or the cursor's), never above or left of its work area
     g := pnl.gui
     g.Show("Hide w" w " h" h), g.GetPos(, , &ww, &wh)
     mi := Buffer(40, 0), NumPut("uint", 40, mi), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
     l := NumGet(mi, 20, "int"), t := NumGet(mi, 24, "int"), r := NumGet(mi, 28, "int"), b := NumGet(mi, 32, "int")
-    g.Show("x" (l + (r - l - ww) // 2) " y" (t + (b - t - wh) // 2))
+    g.Show("x" Max(l, l + (r - l - ww) // 2) " y" Max(t, t + (b - t - wh) // 2))
 }
 
 PanelFontList() {
@@ -146,8 +161,17 @@ PanelHook(on) {   ; message handlers exist only while the panel is open
         OnMessage(m, f, on ? 1 : 0)
 }
 
-PanelClose(*) {
+PanelDiscard() {   ; the layout came out too tall: free its window and fonts (nothing else exists yet) to build it again
     global pnl
+    pnl.gui.Destroy()
+    for k, f in pnl.f
+        DllCall("DeleteObject", "ptr", f)
+    DllCall("gdiplus\GdiplusShutdown", "ptr", pnl.tok)
+    pnl := 0
+}
+
+PanelClose(*) {
+    global pnl, pnlK
     if !pnl
         return
     CutoutCancel(), PanelHook(false), pnl.gui.Destroy(), PendingClear()
@@ -159,7 +183,7 @@ PanelClose(*) {
         DllCall("DeleteObject", "ptr", f)
     DllCall("SelectObject", "ptr", pnl.surfDC, "ptr", pnl.surfOld), DllCall("DeleteObject", "ptr", pnl.surfBmp)
     DllCall("DeleteDC", "ptr", pnl.surfDC), DllCall("gdiplus\GdiplusShutdown", "ptr", pnl.tok)
-    pnl := 0
+    pnl := 0, pnlK := 1
 }
 
 ; ----- Messages: painting, keys, mouse -----
