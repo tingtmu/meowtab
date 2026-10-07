@@ -125,6 +125,7 @@ global plate := 0, plateKey := ""                          ; its size-only layer
 MOOD_NOTES := ["cozy ♡", "nice ✌", "too many…"]  ; caption in the bottom-left corner, same order as imgs
 g.SetFont("s" FONT_SIZE * 3 // 4 " c" NOTE_RGB)  ; smaller, muted
 global moodNote := g.AddText("xm ym r1 w" LIST_WIDTH - 20 " Hidden BackgroundTrans 0x4000000")   ; list covers it on overlap
+SetTimer WarmUp, -200                            ; once startup is done: render the first open's glass early
 
 !Tab::Step(1)
 !+Tab::Step(-1)
@@ -166,6 +167,15 @@ Step(dir) {
 WatchAlt() {
     if DllCall("GetAsyncKeyState", "int", 0x12, "short") >= 0   ; VK_MENU: OS state, covers injected Alt
         Finish(true)
+}
+
+; One shot after startup: lay out the hidden pane for the current windows, so the glass and shadow for
+; that size are cached and the first Alt+Tab only has to show them (~70 ms sooner). Nothing is shown.
+WarmUp() {
+    global wins
+    Critical                          ; an Alt+Tab pressed now waits for it instead of interleaving
+    if !cycling && (wins := CollectWindows()).Length
+        ShowList(true)
 }
 
 Finish(activate) {
@@ -270,7 +280,7 @@ TextWidth(dc, s) {
 ; Exists and visible (apps that "close to tray" only hide their window).
 IsOpen(hwnd) => WinExist(hwnd) && DllCall("IsWindowVisible", "ptr", hwnd)
 
-ShowList() {
+ShowList(warm := false) {   ; warm: stop once the glass and shadow are rendered (WarmUp)
     global rows := []
     titles := []
     for hwnd in wins {
@@ -298,6 +308,8 @@ ShowList() {
     moodNote.Move(, ch - g.MarginY - nh), moodNote.Visible := true
     GlassRender(cw, ch, lh)
     g.GetPos(, , &w, &h)
+    if warm
+        return ShadowBitmap(w, h)
     mi := Buffer(40, 0), NumPut("uint", 40, mi)
     DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
     l := NumGet(mi, 20, "int"), t := NumGet(mi, 24, "int")   ; rcWork

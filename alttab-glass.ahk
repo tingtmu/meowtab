@@ -236,22 +236,36 @@ Layer(win, hbm, x, y, w, h, a := 255) {
 
 ; Warm soft drop shadow in its own click-through window, offset away from the light.
 ShowShadow(w, h) {
-    global shadeBmp, shadeKey
     if SHADOW_A <= 0
         return shade.Hide()
-    b := SHADOW_BLUR, sw := w + 2 * b, sh := h + 2 * b
-    if shadeKey != w "x" h {          ; fades from the outline (alpha 0) to b px inside the pane
-        bm := NewBitmap(sw, sh), gr := Canvas(bm), path := RoundPath(0, 0, sw, sh, PANE_R + b)
-        EdgeFade(gr, path, SHADOW_RGB, 0, SHADOW_A, (w - 2 * b) / sw, (h - 2 * b) / sh, true)
-        DllCall("gdiplus\GdipDeletePath", "ptr", path), DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
-        if shadeBmp
-            DllCall("DeleteObject", "ptr", shadeBmp)
-        shadeBmp := ToHbm(bm), shadeKey := w "x" h
-    }
+    ShadowBitmap(w, h), b := SHADOW_BLUR
     g.GetPos(&x, &y)
-    Layer(shade, shadeBmp, x - b + SHADOW_DX, y - b + SHADOW_DY, sw, sh, paneA)
+    Layer(shade, shadeBmp, x - b + SHADOW_DX, y - b + SHADOW_DY, w + 2 * b, h + 2 * b, paneA)
     DllCall("SetWindowPos", "ptr", shade.Hwnd, "ptr", g.Hwnd, "int", 0, "int", 0, "int", 0, "int", 0
         , "uint", 0x53)                                             ; just below the pane: NOSIZE|NOMOVE|NOACTIVATE|SHOWWINDOW
+}
+
+; The shadow of a w x h pane (shadeBmp, cached by size): fades from the outline (alpha 0) to b px inside
+; the pane. Only that ring needs the gradient; the flat centre is one solid fill (same pixels, ~3x faster).
+ShadowBitmap(w, h) {
+    global shadeBmp, shadeKey
+    if SHADOW_A <= 0 || shadeKey = w "x" h
+        return
+    b := SHADOW_BLUR, sw := w + 2 * b, sh := h + 2 * b, c := 3 * b + PANE_R   ; c: inset of the flat centre
+    gr := Canvas(bm := PBitmap(sw, sh)), path := RoundPath(0, 0, sw, sh, PANE_R + b), flat := sw > 2 * c && sh > 2 * c
+    if flat
+        DllCall("gdiplus\GdipSetClipRectI", "ptr", gr, "int", c, "int", c, "int", sw - 2 * c, "int", sh - 2 * c, "int", 4)   ; Exclude
+    EdgeFade(gr, path, SHADOW_RGB, 0, SHADOW_A, (w - 2 * b) / sw, (h - 2 * b) / sh, true)
+    if flat {
+        DllCall("gdiplus\GdipResetClip", "ptr", gr)
+        DllCall("gdiplus\GdipCreateSolidFill", "uint", Argb(SHADOW_RGB, SHADOW_A), "ptr*", &br := 0)
+        DllCall("gdiplus\GdipFillRectangleI", "ptr", gr, "ptr", br, "int", c, "int", c, "int", sw - 2 * c, "int", sh - 2 * c)
+        DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
+    }
+    DllCall("gdiplus\GdipDeletePath", "ptr", path), DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
+    if shadeBmp
+        DllCall("DeleteObject", "ptr", shadeBmp)
+    shadeBmp := ToHbm(bm), shadeKey := w "x" h
 }
 
 ; Image file -> sz x sz 32bpp HBITMAP (FitBitmap: bicubic, aspect kept). Transparent background = alpha kept.
@@ -288,7 +302,7 @@ GlassRender(w, h, listH) {
             DllCall("gdiplus\GdipDisposeImage", "ptr", plate)
         plate := PaintPlate(w, h), plateKey := w "x" h
     }
-    DllCall("gdiplus\GdipCloneBitmapAreaI", "int", 0, "int", 0, "int", w, "int", h, "int", 0x26200A, "ptr", plate, "ptr*", &bm := 0)
+    DllCall("gdiplus\GdipCloneBitmapAreaI", "int", 0, "int", 0, "int", w, "int", h, "int", 0xE200B, "ptr", plate, "ptr*", &bm := 0)   ; PARGB as the plate
     gr := Canvas(bm)
     PaintInsets(gr)
     DllCall("gdiplus\GdipSetPixelOffsetMode", "ptr", gr, "int", 3)   ; None: the texture fill is 15x faster
@@ -311,9 +325,13 @@ GlassRender(w, h, listH) {
     }
 }
 
-; The smooth glass layers, bottom to top, as a new w x h GDI+ bitmap (caller disposes it).
+; The glass layers, bottom to top, as a new w x h GDI+ bitmap (caller disposes it). The broad gradients are
+; drawn at 1/S size and stretched (as Spill: within 3 levels of full size, ~2-3x faster); the glow's inner
+; edge and the rim are drawn full size.
 PaintPlate(w, h) {
-    bm := NewBitmap(w, h), gr := Canvas(bm)
+    static S := 4
+    sw := Ceil(w / S), sh := Ceil(h / S), gr := Canvas(lo := PBitmap(sw, sh))
+    DllCall("gdiplus\GdipScaleWorldTransform", "ptr", gr, "float", sw / w, "float", sh / h, "int", 0)   ; draw in pane px
     Fill(gr, FadeBrush(0, 0, w, h, 90, [[BASE_TOP, 255, 0], [BASE_MID, 255, 0.5], [BASE_BOT, 255, 1]]), w, h)   ; unclipped: no dark corners
     pane := RoundPath(0, 0, w, h, PANE_R)
     DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", pane, "int", 0)   ; CombineModeReplace
@@ -321,6 +339,9 @@ PaintPlate(w, h) {
     Fill(gr, FadeBrush(0, 0, w, h, 90, [["FFFFFF", SHEEN_A, 0], ["FFFFFF", 0, SHEEN_H], ["FFFFFF", 0, 1]]), w, h)
     RadialFill(gr, 0, h, BLOOM_RX * w, BLOOM_RY * h, BLOOM)
     Fill(gr, FadeBrush(0, 0, w, h, LIGHT_ANGLE, [["FFFFFF", REFLECT_A, 0], ["FFFFFF", 0, REFLECT_EXT], ["FFFFFF", 0, 1]]), w, h)
+    DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
+    gr := Canvas(bm := PBitmap(w, h)), Upscale(gr, lo, sw, sh, w, h)
+    DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", pane, "int", 0)
     DllCall("gdiplus\GdipSetClipRectI", "ptr", gr, "int", GLOW_W, "int", GLOW_W, "int", w - 2 * GLOW_W, "int", h - 2 * GLOW_W
         , "int", 4)                         ; CombineModeExclude: the glow's clear centre needs no fill
     EdgeFade(gr, pane, GLOW_RGB, GLOW_A, 0, 1 - 2 * GLOW_W / w, 1 - 2 * GLOW_W / h)
@@ -330,6 +351,21 @@ PaintPlate(w, h) {
     DllCall("gdiplus\GdipDeletePath", "ptr", pane), DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
     return bm
 }
+
+Upscale(gr, src, sw, sh, w, h) {   ; copy sw x sh bitmap src (disposed) over 0, 0, w, h, smoothly stretched
+    DllCall("gdiplus\GdipCreateImageAttributes", "ptr*", &ia := 0)
+    DllCall("gdiplus\GdipSetImageAttributesWrapMode", "ptr", ia, "int", 3, "uint", 0, "int", 0)   ; TileFlipXY: edges keep their colour
+    DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 6)   ; HighQualityBilinear (plain Bilinear is 3x slower here)
+    DllCall("gdiplus\GdipSetCompositingMode", "ptr", gr, "int", 1)     ; SourceCopy
+    DllCall("gdiplus\GdipDrawImageRectRect", "ptr", gr, "ptr", src, "float", 0, "float", 0, "float", w, "float", h
+        , "float", 0, "float", 0, "float", sw, "float", sh, "int", 2, "ptr", ia, "ptr", 0, "ptr", 0)   ; UnitPixel
+    DllCall("gdiplus\GdipSetCompositingMode", "ptr", gr, "int", 0)     ; SourceOver
+    DllCall("gdiplus\GdipDisposeImageAttributes", "ptr", ia), DllCall("gdiplus\GdipDisposeImage", "ptr", src)
+}
+
+; New w x h premultiplied 32bpp GDI+ bitmap: GDI+ draws into it fastest and ToHbm needs no conversion.
+PBitmap(w, h) => (DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", w, "int", h, "int", 0, "int", 0xE200B   ; 32bppPARGB
+    , "ptr", 0, "ptr*", &bm := 0), bm)
 
 ; Preview well around the thumbnail area and a hairline around the list card (client coords).
 PaintInsets(gr) {
