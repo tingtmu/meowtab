@@ -36,9 +36,22 @@ Code map: `meowtab.ahk` holds settings, hotkeys and switching; `alttab-native.ah
 - Keyboard, wheel and drag scrolling stay smooth (no frame over about 8 ms on the dev machine).
 - The test gains checks for the 8 → 9 switch, Up/Down in fixed columns, and scroll-follows-selection.
 
-## 2. The "Velvet" look, and whether to offer a choice
+## 2. Custom shortcut bindings
 
-### 2.1 Velvet: native at a glance, Apple-like up close
+**Today:** opening and cycling the switcher are tied to Alt+Tab and Alt+Shift+Tab; releasing Alt switches to the selected window. There is no way to choose another combination from settings, which makes conflicts with a window manager or another app harder to work around.
+
+**Plan:**
+
+- Add a **SHORTCUTS** section to the settings panel with key capture for forward and backward cycling, showing the current combinations in readable form. Keep Alt+Tab and Alt+Shift+Tab as the defaults, with one reset action.
+- **Keep the hold-and-release behaviour.** Both bindings share a hold modifier: hold it to keep the pane open, press the chosen keys to cycle, release it to switch. Arrows and Esc keep working inside the pane. The later Ctrl+Alt+Tab mode can have its own binding once it exists.
+- **Validate before saving.** Reject duplicates and unsupported combinations, and check that the new bindings can be registered. If registration fails, keep the working bindings and explain the problem. Invalid values in `settings.ini` fall back to the defaults with a notification, as other settings do.
+- Save the bindings in `settings.ini` and apply them through the settings panel's existing reload flow. Keep ordinary typing available while the pane is closed, and suspend switching shortcuts while the user captures a new combination.
+
+**Done when:** the defaults behave as today; a custom forward/backward pair survives a restart and reset restores the defaults; invalid bindings leave a working switcher; and the integration test covers cycling, release-to-switch and cancellation with custom bindings within item 4's performance budgets.
+
+## 3. The "Velvet" look, and whether to offer a choice
+
+### 3.1 Velvet: native at a glance, Apple-like up close
 
 The user's brief: *an ambient, elegant minimalism with a soft and warm feeling, subtle and non-glaring, creating a velvety, tactile, Apple-like aesthetic.* Directions to explore (prototype first, judge by eye on light and dark wallpapers):
 
@@ -51,7 +64,7 @@ The user's brief: *an ambient, elegant minimalism with a soft and warm feeling, 
 
 Constraint: DWM thumbnails are always rectangular and drawn on top of our surface, so we can't round their corners. Frame them with a consistent inset "mat" instead.
 
-### 2.2 Should users pick the look? Recommendation: yes, one small choice
+### 3.2 Should users pick the look? Recommendation: yes, one small choice
 
 - Add a **LOOK** section to the settings panel with two picture cards, like the mood cards: **Velvet** (the default once it's polished) and **Windows 11** (today's faithful look). Both follow Windows' light and dark mode automatically (already done for Windows 11), so there is no separate light/dark switch.
 - Two visual options in one control isn't overwhelming; three or more, or separate colour knobs, would be.
@@ -59,7 +72,7 @@ Constraint: DWM thumbnails are always rectangular and drawn on top of our surfac
 
 **Done when** both looks pass the test suite, switching looks needs no restart (or re-opens the pane cleanly), and each look has light and dark README screenshots.
 
-## 3. Performance and resources
+## 4. Performance and resources
 
 The 0.1 preview already feels smooth, so this is a guardrail, not a project. Budgets to keep, on a 1080p / 150 % machine:
 
@@ -72,7 +85,24 @@ The 0.1 preview already feels smooth, so this is a guardrail, not a project. Bud
 
 When adding Velvet effects, cache what doesn't change per frame (tint, grain, header backgrounds) instead of re-rendering it. Measure with `QueryPerformanceCounter` before and after. If an effect breaks a budget, drop or simplify it.
 
-## 4. A new demo GIF: "Your Alt+Tab cat monitors your work stress"
+## 5. Release checks and easier installation
+
+**Today:** users run the source or build the exe themselves. CI can build a zip from a version tag, but there are no published scan reports or WinGet / Scoop packages to help people check a download and get started quickly.
+
+**Plan**, in order:
+
+- **First release:** tag `v0.1.0` so CI builds `meowtab.zip`, then publish it as a GitHub release and switch the README's quick start back to "download and run".
+- **Public checks:** scan the compiled exes and final release zip with VirusTotal, and publish report links and SHA-256 hashes beside the download. The reports must refer to the exact shipped files; repeat the checks whenever a build changes. Investigate detections and document the findings. Describe the results as checks on those files, with their limitations, so users can judge the evidence.
+- **Package installation:** once the release files and layout are stable, submit a WinGet manifest and a Scoop manifest using versioned GitHub release URLs and matching hashes. Install the built app with its pictures, preserve settings and custom pictures through upgrades, and document installation, updating and removal in the README.
+- **Keep releases in step:** update the reports, hashes and both package manifests for each release, so the package managers deliver the same version as the direct download.
+
+**Done when:**
+
+- The release page links to scan results and hashes for its exact files, and the README makes them easy to find before downloading.
+- Both WinGet and Scoop can install and launch MeowTab on a clean Windows machine without a separate AutoHotkey install.
+- An upgrade keeps the user's settings and pictures, and removal works as documented.
+
+## 6. A new demo GIF: "Your Alt+Tab cat monitors your work stress"
 
 About 10 s, looping seamlessly:
 
@@ -90,9 +120,9 @@ Production notes:
 - **Driving it:** a script, not real keystrokes. Open and close demo windows on a timeline and call `Step()` / `Finish()` directly (synthetic Alt key events are unreliable over Remote Desktop with a tiling WM; see the test's notes).
 - **Captions:** the native look has no caption, so add them in post with ffmpeg `drawtext` (rounded label, soft shadow, the same font as the titles). A small speech bubble next to the cat could become a product feature later; it isn't needed for the GIF.
 - **Recording:** ffmpeg `gdigrab` of the region at 30 fps. Export about 960 px wide with `palettegen` / `paletteuse`, under about 5 MB for `docs/demo.gif`, plus an MP4.
-- The "increasingly concerned" cat depends on item 5's new picture. More mood levels (e.g. a fourth one at 15+ windows) would be a separate feature.
+- The "increasingly concerned" cat depends on item 7's new picture. More mood levels (e.g. a fourth one at 15+ windows) would be a separate feature.
 
-## 5. New "many" picture
+## 7. New "many" picture
 
 `images/chill_4.png` (added by the author, transparent background, not committed yet) replaces `images/chill_many.png`. No backup of the old one is needed: it stays in git history.
 
@@ -100,9 +130,20 @@ Production notes:
 - **Check it in place:** the settings panel's "too many…" card and its peek-height scene, and the switcher with 8+ windows (`PEEK_MAX` = 95 % of the art above the edge). The face and ears must show; nothing may be clipped at the top of the canvas.
 - Then delete `images/chill_4.png`, keep the name `chill_many.png`, and let `build.ps1` ship it as before.
 
+## 8. macOS support, after the Windows release is stable
+
+**Today:** MeowTab uses AutoHotkey and Windows APIs for hotkeys, window previews and drawing. Supporting macOS needs a native implementation of those parts, while keeping the peeking pictures and mood behaviour.
+
+**Plan:**
+
+- **Start with an existing switcher.** Evaluate [AltTab for macOS](https://github.com/lwouis/alt-tab-macos) as a reference or a possible fork. Check how its window switching, previews and shortcuts could support MeowTab's pane and pictures; record the approach and review its licence requirements before reusing code.
+- **A small first preview:** forward/backward window cycling, release-to-switch, cancellation, custom shortcuts, and the three mood pictures with support for the user's own images. Keep the picture fully visible and measure opening and selection latency on real Mac hardware.
+- **Fit the platform:** follow macOS light and dark appearance, explain required permissions during setup, and check minimized windows, full-screen apps, Spaces and multiple displays. Document the supported macOS versions and hardware for the preview.
+
+**Done when:** a downloadable Mac preview works on the documented hardware and macOS versions; switching, permissions and picture placement have been checked on a real Mac; and its setup instructions and demo captures are ready, following the same privacy rules as Windows.
+
 ## Also on the list
 
-- **First release:** tag `v0.1.0` so CI builds `meowtab.zip`, then publish it as a GitHub release and switch the README's quick start back to "download and run".
 - **Ctrl+Alt+Tab:** a switcher that stays open without holding Alt (arrows and Enter, Esc to close), like Windows.
 - **Hover:** show the hover state immediately when the pane opens under the cursor, not only after the mouse moves.
 - **Minimized windows:** verify their thumbnails live; Windows keeps a last image, otherwise MeowTab shows the big app icon.
