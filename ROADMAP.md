@@ -124,11 +124,7 @@ Production notes:
 
 ## 7. New "many" picture
 
-`images/chill_4.png` (added by the author, transparent background, not committed yet) replaces `images/chill_many.png`. No backup of the old one is needed: it stays in git history.
-
-- **Match the set:** the existing `chill_*` pictures are square with the cat filling a similar share of the canvas. Measure the art bounding box of `chill_few/some/many.png` (alpha > 24, as `ArtSpan` does). Crop `chill_4.png` to its art, pad it to a square with transparent margins, and scale it so its art height and width sit in the same range as the others. Save it at the same pixel size, keeping the PNG small (the others are 200-300 KB).
-- **Check it in place:** the settings panel's "too many…" card and its peek-height scene, and the switcher with 8+ windows (`PEEK_MAX` = 95 % of the art above the edge). The face and ears must show; nothing may be clipped at the top of the canvas.
-- Then delete `images/chill_4.png`, keep the name `chill_many.png`, and let `build.ps1` ship it as before.
+**Done** in `4289dff`: `images/chill_many.png` is the author's new art, framed like the rest of the set. The framing rules live in `openspec/specs/mood-pictures/spec.md`.
 
 ## 8. macOS support, after the Windows release is stable
 
@@ -152,4 +148,4 @@ Production notes:
 
 ## How to capture screenshots and the GIF
 
-The capture script used for the 0.1 README lists only its own demo windows. It puts a stand-in wallpaper over the monitor where the pane opens, captures the pane with `BitBlt` (`CAPTUREBLT`, which includes the acrylic and the DWM thumbnails), and crops to the pane and the picture. It needs a connected desktop. A copy lives in `tools/readme-shots.ahk`; run it from the repo root with `AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk light docs\meowtab.png` (or `dark`).
+The capture script used for the 0.1 README lists only its own demo windows. It puts a stand-in wallpaper over the monitor where the pane opens, captures the pane with `BitBlt` (`CAPTUREBLT`, which includes the acrylic and the DWM thumbnails), and crops to the pane and the picture. It needs a connected desktop. A copy lives in `tools/readme-shots.ahk`; run it from the repo root with `AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk light docs\meowtab.png` (or `dark`). A window count after the file lists more demo windows (`light out.png 12` reaches `PEEK_MAX`). `settings <out.png>` captures the settings panel alone with default settings; `docs/settings.png` is framed on a 150 % display.

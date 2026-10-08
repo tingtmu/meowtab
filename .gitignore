@@ -3,6 +3,7 @@ __pycache__/
 *.bak-*
 *.preview.png
 .claude/
+.agents/
 settings.ini
 images/custom_*
 build/
