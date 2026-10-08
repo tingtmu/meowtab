@@ -15,7 +15,7 @@
 FONT_NAME  := FontInstalled("Noto Sans TC") ? "Noto Sans TC" : "Segoe UI"   ; tile titles: Latin + Traditional Chinese; else Segoe UI (CJK falls back)
 FONT_SIZE  := 10      ; title size in points (the tile headers grow to fit)
 IMG_DIR    := "images" ; folder of the mood images, relative to this script
-IMG_PREFIX := "chill" ; mood images in IMG_DIR: <prefix>_few.png, <prefix>_some.png, <prefix>_many.png
+IMG_PREFIX := "chill" ; mood images in %APPDATA%\MeowTab\images, else IMG_DIR: <prefix>_few.png, <prefix>_some.png, <prefix>_many.png
 SOME_FROM  := 3       ; window counts: few = 1 .. SOME_FROM-1, some = SOME_FROM .. MANY_FROM-1,
 MANY_FROM  := 8       ; many = MANY_FROM and up (2 <= SOME_FROM < MANY_FROM <= 30)
 IMG_SIZE   := 250     ; image peeking over the pane's top-left edge, in pixels
@@ -82,7 +82,7 @@ global gdipToken := 0                        ; GDI+ stays up: every open draws w
 DllCall("gdiplus\GdiplusStartup", "ptr*", &gdipToken, "ptr", si, "ptr", 0)
 global imgs := [], spans := []                 ; mood images (few / some / many; 0 = none); spans: [top, bottom] rows of their art
 for mood in ["few", "some", "many"]
-    imgs.Push(ScaledBitmap(A_ScriptDir "\" IMG_DIR "\" IMG_PREFIX "_" mood ".png", IMG_SIZE, &span)), spans.Push(span)
+    imgs.Push(ScaledBitmap(MoodImage(IMG_PREFIX, mood), IMG_SIZE, &span)), spans.Push(span)
 MOOD_NOTES := ["cozy ♡", "nice ✌", "too many…"]  ; the moods' names in the Settings panel, same order as imgs
 global titleFont := 0, titleFmt := 0, titleLineH := 0   ; tile titles (TitleInit): font, one-line format, line height in px
 TitleInit()

@@ -71,7 +71,7 @@ general:
   startup_commands: ['shell-exec C:\path\to\meowtab\meowtab.ahk']
 ```
 
-To make MeowTab exit when GlazeWM quits, put this in `settings.ini` next to the script (the settings panel keeps the line when it saves):
+To make MeowTab exit when GlazeWM quits, put this in `%APPDATA%\MeowTab\settings.ini` (the settings panel keeps the line when it saves):
 
 ```ini
 [settings]
@@ -81,7 +81,7 @@ WM_PROCESS=glazewm.exe
 **Good to know**
 
 - Windows doesn't let a normal app's hotkeys reach an elevated (administrator) window, so while one is focused you get the built-in Alt+Tab. To cover those windows too, run MeowTab as administrator.
-- It never connects to the network. Your settings and pictures stay in its own folder.
+- It never connects to the network. Your settings and pictures stay on your PC, in `%APPDATA%\MeowTab`.
 
 ## Usage
 
@@ -111,15 +111,15 @@ Double-click the tray icon, or right-click it and choose **Settings…**. The de
 - **Peek height.** How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes preview it with your own pictures.
 - **Title font.** Any installed font, at 10 to 24 pt.
 
-**Save** (or Enter) writes `settings.ini` next to the script and reloads it. **Cancel** (or Esc) changes nothing. **Reset to defaults** removes the panel's settings from `settings.ini`; it never deletes pictures and keeps lines you added yourself, such as `WM_PROCESS`.
+**Save** (or Enter) writes `%APPDATA%\MeowTab\settings.ini` and reloads it. **Cancel** (or Esc) changes nothing. **Reset to defaults** removes the panel's settings from `settings.ini`; it never deletes pictures and keeps lines you added yourself, such as `WM_PROCESS`.
 
 The panel is built when you open it and freed when you close it, so it never slows Alt+Tab down.
 
 ## Use your own pictures
 
-The settings panel is the easy way. Your pictures are copied into `images/` as `custom_few.png`, `custom_some.png` and `custom_many.png`; the shipped `chill_*` cats are never overwritten. Large pictures are scaled down to 1024 px and photos are turned upright.
+The settings panel is the easy way. Your pictures are copied into `%APPDATA%\MeowTab\images\` as `custom_few.png`, `custom_some.png` and `custom_many.png`; the shipped `chill_*` cats are never overwritten. Large pictures are scaled down to 1024 px and photos are turned upright.
 
-By hand: put three PNGs in `images/` named `<prefix>_few.png`, `<prefix>_some.png` and `<prefix>_many.png`, set `IMG_PREFIX=<prefix>` in `settings.ini`, then **Reload Script** from the tray menu.
+By hand: put three PNGs in `%APPDATA%\MeowTab\images\` named `<prefix>_few.png`, `<prefix>_some.png` and `<prefix>_many.png`, set `IMG_PREFIX=<prefix>` in `settings.ini`, then **Reload Script** from the tray menu.
 
 Tips:
 
@@ -140,7 +140,7 @@ Run only one at a time; both replace Alt+Tab. The other `.ahk` files are parts t
 
 ## Settings
 
-The block at the top of each script holds the built-in defaults; `settings.ini` next to the script overrides them. The settings panel writes it, and you can add lines by hand under `[settings]` (as `NAME=value`) for the keys marked *ini*. Every value read from `settings.ini` is checked: an invalid one falls back to its default, an out-of-range one is clamped, and a tray notification says which.
+The block at the top of each script holds the built-in defaults; `%APPDATA%\MeowTab\settings.ini` overrides them. The settings panel writes it, and you can add lines by hand under `[settings]` (as `NAME=value`) for the keys marked *ini*. Every value read from `settings.ini` is checked: an invalid one falls back to its default, an out-of-range one is clamped, and a tray notification says which. A `settings.ini` from an older checkout (where it sat beside the script) is no longer read: move it to `%APPDATA%\MeowTab` by hand, and any `custom_*.png` from `images\` into its `images\` folder.
 
 | Setting | Default | Applies to | Set in | What it does |
 | --- | --- | --- | --- | --- |

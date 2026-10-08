@@ -2,6 +2,8 @@
 ; Integration test for meowtab.ahk. Opens 5 temporary windows on the
 ; current desktop (a tiling WM may tile them briefly), then checks ordering.
 ; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tests\meowtab.test.ahk | more
+DATA_DIR := A_Temp "\meowtab-test-" A_TickCount   ; a new, empty data folder: the test never reads or changes the user's own
+OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))   ; gone again however the run ends
 #Include %A_LineFile%\..\..\meowtab.ahk
 
 global fails := 0, names := Map()
@@ -11,6 +13,14 @@ Check(label, got, want) {
     ok := got = want
     fails += !ok
     FileAppend (ok ? "PASS " : "FAIL ") label (ok ? "" : "`n     got:  " got "`n     want: " want) "`n", "*"
+}
+
+AppFiles() {   ; settings.ini beside meowtab.ahk and the files in its images\ (name, size, time): the test must not change them
+    s := ""
+    for pat in [AppDir() "settings.ini", AppDir() IMG_DIR "\*"]
+        Loop Files pat
+            s .= A_LoopFileName " " A_LoopFileSize " " A_LoopFileTimeModified "`n"
+    return s
 }
 
 Act(h) {
@@ -113,6 +123,30 @@ GridLayout(800, 1080, 0), surf := SurfaceMake(grid.w, grid.h)
 StepRow(1), down := idx, StepRow(1), last := idx, StepRow(-1), up := idx, StepRow(-1), first := idx
 PaneFree(), cycling := false, Wait(0)
 Check("Alt+Down / Up move between two rows, none past the ends", grid.rows.Length ": " down " " last " " up " " first, "2: 3 3 1 1")
+
+; User data goes to DATA_DIR (the user's AppData\MeowTab in real use), never next to the script.
+Check("data folder is new and empty", FileExist(DATA_DIR) "", "")
+before := AppFiles()
+Check("saving settings: no error", SettingsWrite(Map("FONT_SIZE", 14)), "")
+Check("saving settings creates <data>\settings.ini", IniRead(DATA_DIR "\settings.ini", "settings", "FONT_SIZE", ""), 14)
+src := DATA_DIR "\src.png", bm := NewBitmap(8, 8), SavePng(bm, src), DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
+imp := ""
+for mood in Moods()
+    imp .= ImportImage(src, PendingImage(mood))
+Check("importing pictures: no error", imp, "")
+Check("pending pictures sit in <data>\images", FileExist(DATA_DIR "\images\custom_few.pending.png") != "", true)
+PendingClear()
+Check("PendingClear sweeps the user folder", FileExist(DATA_DIR "\images\custom_*.pending.png") "", "")
+for mood in Moods()
+    ImportImage(src, PendingImage(mood))
+Check("saving pictures: no error", ImagesCommit("chill"), "")
+Check("saving pictures puts custom_* in <data>\images", FileExist(DATA_DIR "\images\custom_few.png") != "" && FileExist(DATA_DIR "\images\custom_many.png") != "", true)
+Check("and no pending file is left", FileExist(DATA_DIR "\images\*.pending.png") "", "")
+Check("the lookup finds the user folder first", MoodImage("custom", "some"), DATA_DIR "\images\custom_some.png")
+Check("else falls back to the app folder", MoodImage("chill", "some"), A_ScriptDir "\" IMG_DIR "\chill_some.png")
+FileCopy src, DATA_DIR "\images\chill_some.png"
+Check("a user set of the same name wins", MoodImage("chill", "some"), DATA_DIR "\images\chill_some.png")
+Check("the app's settings.ini and images\ are unchanged", AppFiles(), before)
 
 for w in guis
     w.Destroy()

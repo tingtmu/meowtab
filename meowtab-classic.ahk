@@ -18,7 +18,7 @@ MAX_ROWS   := 15      ; longer lists scroll
 PREVIEW_W  := 800    ; live preview width in pixels, right of the list (0 = no preview)
 SEPARATOR  := "   —   "  ; between window title and process name
 IMG_DIR    := "images" ; folder of the mood images, relative to this script
-IMG_PREFIX := "chill" ; mood images in IMG_DIR: <prefix>_few.png, <prefix>_some.png, <prefix>_many.png
+IMG_PREFIX := "chill" ; mood images in %APPDATA%\MeowTab\images, else IMG_DIR: <prefix>_few.png, <prefix>_some.png, <prefix>_many.png
 SOME_FROM  := 3       ; window counts: few = 1 .. SOME_FROM-1, some = SOME_FROM .. MANY_FROM-1,
 MANY_FROM  := 8       ; many = MANY_FROM and up (2 <= SOME_FROM < MANY_FROM <= 30)
 IMG_SIZE   := 100     ; mood image in the bottom-left corner, in pixels
@@ -63,7 +63,7 @@ si := Buffer(24, 0), NumPut("uint", 1, si)   ; GdiplusStartupInput
 DllCall("gdiplus\GdiplusStartup", "ptr*", &gdipToken := 0, "ptr", si, "ptr", 0)
 global imgs := []
 for mood in ["few", "some", "many"]
-    imgs.Push((hbm := ScaledBitmap(A_ScriptDir "\" IMG_DIR "\" IMG_PREFIX "_" mood ".png", IMG_SIZE))
+    imgs.Push((hbm := ScaledBitmap(MoodImage(IMG_PREFIX, mood), IMG_SIZE))
         ? g.AddPicture("xm ym w" IMG_SIZE " h" IMG_SIZE " Hidden 0x4000000", "HBITMAP:" hbm) : 0)
 DllCall("gdiplus\GdiplusShutdown", "ptr", gdipToken)
 MOOD_NOTES := ["cozy ♡", "nice ✌", "too many…"]  ; caption beside the image, same order as imgs

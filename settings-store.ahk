@@ -9,14 +9,19 @@ SettingsSchema() => [["FONT_NAME", "font"], ["FONT_SIZE", "int", 10, 24], ["IMG_
     , ["LIST_WIDTH", "int", 300, 4000], ["MAX_ROWS", "int", 3, 50], ["PREVIEW_W", "int", 0, 4000]
     , ["IMG_SIZE", "int", 40, 600], ["IMG_ROWS", "int", 0, 50], ["WM_PROCESS", "process"]]
 
-SettingsFile() => A_ScriptDir "\settings.ini"
+; Where the user's settings and pictures live, so replacing the app folder keeps them. A script may set DATA_DIR
+; before including meowtab.ahk (the test and readme-shots do); read here, not at top level, so SettingsLoad sees it.
+DataDir() => IsSet(DATA_DIR) ? DATA_DIR : A_AppData "\MeowTab"
+UserImagesDir() => DataDir() "\images"
+SettingsFile() => DataDir() "\settings.ini"
 ; Folder of the repo's own files (assets\). A compiled exe has no source files (A_LineFile is
 ; "*#1"), so there they sit next to the exe; as .ahk, next to this file (also when a test includes it).
 AppDir() => A_IsCompiled ? A_ScriptDir "\" : RegExReplace(A_LineFile, "[^\\]+$")
 Moods() => ["few", "some", "many"]
 MoodOf(n) => n < SOME_FROM ? 1 : n < MANY_FROM ? 2 : 3              ; window count -> 1 few, 2 some, 3 many
-MoodImage(prefix, mood) => A_ScriptDir "\" IMG_DIR "\" prefix "_" mood ".png"
-PendingImage(mood) => A_ScriptDir "\" IMG_DIR "\custom_" mood ".pending.png"   ; picked in the panel, not saved yet
+UserImage(prefix, mood) => UserImagesDir() "\" prefix "_" mood ".png"             ; where the user's pictures are written
+MoodImage(prefix, mood) => FileExist(u := UserImage(prefix, mood)) ? u : A_ScriptDir "\" IMG_DIR "\" prefix "_" mood ".png"   ; user's first, then the app's
+PendingImage(mood) => UserImagesDir() "\custom_" mood ".pending.png"   ; picked in the panel, not saved yet
 
 ; Startup: remember the built-in defaults, then overlay settings.ini. Every value is checked (type, range,
 ; installed font, existing images); a bad one keeps its default and is reported once (tray tip + debug log).
@@ -64,7 +69,7 @@ SettingsCheck(s, raw, def, &why) {
         for mood in Moods()
             if FileExist(MoodImage(raw, mood))
                 return raw
-        return (why := "no " raw "_*.png images in " IMG_DIR ", using " def, def)
+        return (why := "no " raw "_*.png images found, using " def, def)
     case "process":
         if raw = "" || RegExMatch(raw, "i)^[^\\/:*?`"<>|]{1,80}\.exe$")
             return raw
@@ -102,8 +107,10 @@ SettingsSet(k, v) {
 }
 
 SettingsCreate(file) {   ; a new settings.ini starts as UTF-16, which keeps any font name intact
-    if !FileExist(file)
-        FileAppend "[settings]`n", file, "UTF-16"
+    if FileExist(file)
+        return
+    DirCreate DataDir()
+    FileAppend "[settings]`n", file, "UTF-16"
 }
 
 ; Panel values (Map) -> settings.ini. A value equal to the built-in default removes its key; keys the panel
@@ -146,6 +153,10 @@ SettingsReset() {
 ; Any GDI+-readable picture -> dest as PNG, turned upright (EXIF) and at most 1024 px, so the switchers'
 ; startup stays quick. A PNG that needs neither is copied as is. "" = ok, else why not.
 ImportImage(src, dest) {
+    SplitPath dest, , &dir
+    try DirCreate dir                                    ; the user's images folder may not exist yet
+    catch as e
+        return "couldn't create " dir " (" e.Message ")"
     if DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", src, "ptr*", &bm := 0)
         return "can't read that file as a picture (PNG, JPG, BMP or GIF)"
     if turn := ExifTurn(bm)
@@ -171,7 +182,7 @@ ImportImage(src, dest) {
 ; picture (or lose a stale one), so the "custom" set always shows what the panel showed. "" = ok.
 ImagesCommit(prefix) {
     for mood in Moods() {
-        pend := PendingImage(mood), live := MoodImage("custom", mood), cur := MoodImage(prefix, mood)
+        pend := PendingImage(mood), live := UserImage("custom", mood), cur := MoodImage(prefix, mood)
         try {
             if FileExist(pend)
                 FileMove pend, live, 1
@@ -184,7 +195,7 @@ ImagesCommit(prefix) {
 }
 
 PendingClear() {   ; drop unsaved pictures (and any leftover backups of them)
-    Loop Files A_ScriptDir "\" IMG_DIR "\custom_*.pending.png*"
+    Loop Files UserImagesDir() "\custom_*.pending.png*"
         try FileDelete A_LoopFileFullPath
         catch as e
             OutputDebug "meowtab: couldn't delete " A_LoopFileFullPath " (" e.Message ")"

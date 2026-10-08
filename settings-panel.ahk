@@ -376,8 +376,10 @@ PanelClean(i, *) {   ; cutout.ahk on the card's working copy (made from the live
         return
     made := !c.pending
     if made
-        try FileCopy c.file, pend, 1
-        catch as e
+        try {
+            DirCreate UserImagesDir()
+            FileCopy c.file, pend, 1
+        } catch as e
             return PanelNote("Couldn't prepare the picture (" e.Message ").")
     c.busy := true, c.clean.ctl.Enabled := false, PanelRedraw("card", "chip")
     PanelNote("Cleaning “" MOOD_NOTES[i] "”…")
