@@ -36,7 +36,8 @@ AccentRing() {
 ; opaque black. Without the system backdrop (before build 22621) Render paints an opaque pane instead.
 PaneInit(h) {
     DwmSet(h, 2, 2)                                ; NCRENDERING_POLICY = ENABLED
-    DwmSet(h, 33, 2)                               ; WINDOW_CORNER_PREFERENCE = ROUND (8 px at 96 dpi), with DWM's border and shadow
+    DwmSet(h, 33, 2)                               ; WINDOW_CORNER_PREFERENCE = ROUND (8 px at 96 dpi), with DWM's shadow
+    DwmSet(h, 34, 0xFFFFFFFE)                      ; BORDER_COLOR = COLOR_NONE: no hard grey hairline; DrawEdge draws a soft one
     DllCall("dwmapi\DwmExtendFrameIntoClientArea", "ptr", h, "ptr", Buffer(16, 0xFF))   ; MARGINS -1: frame = client area
     if BACKDROP
         DwmSet(h, 38, 3)                           ; SYSTEMBACKDROP_TYPE = TRANSIENTWINDOW: the flyouts' acrylic
@@ -215,14 +216,25 @@ SelectTile(i) {   ; the selection to tile i, its row scrolled into view
 
 ; ----- Drawing: one full redraw per change (~2 ms for 20 tiles, spike Q5); DWM puts the thumbnails over it -----
 
-Render(s) {   ; the pane's pixels for the current state: tiles, hover, selection
+Render(s) {   ; the pane's pixels for the current state: its edge, tiles, hover, selection
     DllCall("gdiplus\GdipGraphicsClear", "ptr", s.gr, "uint", BACKDROP ? 0 : Argb(pal.pane, 255))   ; clear glass / opaque pane
+    DrawEdge(s.gr, s.w, s.h)
     for i, t in tiles
         if Shown(t)
             DrawTile(s.gr, i, t)
     if idx && Shown(tiles[idx])
         DrawSelection(s.gr, tiles[idx])
     DllCall("gdiplus\GdipFlush", "ptr", s.gr, "int", 1)   ; FlushIntentionSync: done before GDI reads the bits
+}
+
+; The pane's edge, in place of DWM's hard grey border: a faint hairline (definition on light backdrops) and just
+; inside it a 1 px highlight fading from the top down, as light catches a glass lip; both on DWM's corner radius.
+DrawEdge(gr, w, h) {
+    r := Round(PANE_R * grid.S), o := pal.hair[2] ? 1 : 0   ; the highlight goes inside the hairline, if there is one
+    if o
+        Stroke(gr, 0.5, 0.5, w - 1, h - 1, r - 0.5, 1, [[pal.hair[1], pal.hair[2], 0], [pal.hair[1], pal.hair[2], 1]], 90)
+    Stroke(gr, o + 0.5, o + 0.5, w - 2 * o - 1, h - 2 * o - 1, r - o - 0.5, 1
+        , [[pal.edge[1], pal.edge[2], 0], [pal.edge[1], pal.edge[3], 1]], 90)   ; FadeBrush at 90: top -> bottom
 }
 
 ; Header (icon, title; hovered: lighter, with the close button) over the thumbnail slot, which gets a faint fill

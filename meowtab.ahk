@@ -34,6 +34,7 @@ PANE_MAX_W  := 0.84    ; widest pane, share of the work area's width
 ASPECT_MIN  := 0.75, ASPECT_MAX := 2.0  ; thumbnail slot width / height, clamped (else the window's own shape)
 TILE_MIN_W  := 134     ; narrowest tile (as native), so a narrow window's title still reads; its thumbnail is centred in it
 PANE_MARGIN := 16      ; screen room kept above the image and below the pane
+PANE_R      := 8       ; the pane's corner radius, as DWM rounds it (DWMWCP_ROUND); its drawn edge follows it
 TILE_R      := 12      ; tile corner radius
 HEADER_H    := 40      ; header strip over the thumbnail; taller when the title font needs it (its line height + 24)
 ICON_PX     := 16, ICON_X := 12, TITLE_X := 36   ; header: app icon size and left edge, the title's left edge
@@ -45,11 +46,12 @@ PEEK_X      := 24      ; image's left edge, from the pane's left edge
 PEEK_MS     := 180, ANIM_TICK := 15   ; image slide-up / glide (ease-out cubic), animation timer period; ms
 TEXT_HINT   := 4       ; GDI+ text: 4 AntiAlias (full CJK strokes), 3 AntiAliasGridFit; never ClearType on glass (fringes)
 ; Light / dark, as Windows mode (the taskbar's). pane: opaque fill where there's no acrylic (before build 22621);
-; head / hot: header fill / hovered; slot: under the thumbnail; inner: the selection's inner stroke; ring: default accent
+; head / hot: header fill / hovered; slot: under the thumbnail; inner: the selection's inner stroke; ring: default accent;
+; edge: the pane's 1 px inner highlight, alpha at its top -> bottom; hair: a faint hairline outside it (alpha 0 = none)
 LIGHT_PAL := {pane: "F3F3F3", text: "000000", head: ["FFFFFF", 200], hot: ["FFFFFF", 240], slot: ["FFFFFF", 90]
-    , inner: ["FFFFFF", 180], ring: "005FB8"}
+    , inner: ["FFFFFF", 180], ring: "005FB8", edge: ["FFFFFF", 120, 36], hair: ["000000", 18]}
 DARK_PAL  := {pane: "202020", text: "FFFFFF", head: ["000000", 166], hot: ["000000", 110], slot: ["000000", 70]
-    , inner: ["000000", 180], ring: "4CC2FF"}
+    , inner: ["000000", 180], ring: "4CC2FF", edge: ["FFFFFF", 36, 10], hair: ["FFFFFF", 0]}
 ; ==========================================================================
 
 CoordMode "Mouse", "Screen"
@@ -98,7 +100,7 @@ OnMessage(0x1A, ThemeChanged)                ; WM_SETTINGCHANGE: light / dark mo
 ; pane's top edge show. Click-through and never activated (LAYERED|TRANSPARENT|NOACTIVATE).
 global peek := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08080020")
 global peekDC := DllCall("CreateCompatibleDC", "ptr", 0, "ptr")   ; holds the shown image for UpdateLayeredWindow
-global peekK := 0, peekN := 0, peekFrom := 0, peekGoal := 0, peekT := 0, peekX := 0, peekEdge := 0, peekRim := 0   ; see PeekTo
+global peekK := 0, peekN := 0, peekFrom := 0, peekGoal := 0, peekT := 0, peekX := 0, peekEdge := 0   ; see PeekTo
 SetTimer WarmUp, -200                        ; once startup is done: GDI+'s cold start, off the first Alt+Tab
 
 !Tab::Step(1)

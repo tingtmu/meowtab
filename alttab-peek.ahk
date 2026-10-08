@@ -15,19 +15,18 @@ ScaledBitmap(file, sz, &span := 0) {
 ; Image k with n rows above the pane's top edge, its left edge at screen x: a fresh open slides it up from
 ; nothing, else it glides from its current height (the image swaps at once if the mood changed). No image: hidden.
 PeekTo(k, n, x, edge, fresh) {
-    global peekK, peekFrom, peekGoal, peekT, peekX, peekEdge, peekRim
+    global peekK, peekFrom, peekGoal, peekT, peekX, peekEdge
     if !imgs[k]
         return PeekHide()
     if k != peekK
         DllCall("SelectObject", "ptr", peekDC, "ptr", imgs[k], "ptr")
-    DllCall("dwmapi\DwmGetWindowAttribute", "ptr", g.Hwnd, "uint", 37, "uint*", &rim := 0, "uint", 4)   ; VISIBLE_FRAME_BORDER_THICKNESS
-    peekK := k, peekFrom := fresh ? 0 : peekN, peekGoal := n, peekT := A_TickCount, peekX := x, peekEdge := edge, peekRim := rim
+    peekK := k, peekFrom := fresh ? 0 : peekN, peekGoal := n, peekT := A_TickCount, peekX := x, peekEdge := edge
     SetTimer PeekTick, ANIM_TICK
     PeekTick()                                     ; the first frame now
 }
 
-; One frame (ease-out cubic). The window is n + rim rows of the image, its bottom at edge + rim: the pane's DWM
-; rim is translucent, so the paws go on under it (else a hairline of desktop shows between them and the pane).
+; One frame (ease-out cubic): the image's top n rows, the window's bottom exactly on the pane's top edge. DWM's
+; border is off (PaneInit), so the acrylic reaches the edge: nothing goes under it (it would blur into the glass).
 PeekTick() {
     global peekN
     Critical
@@ -35,10 +34,10 @@ PeekTick() {
     peekN := peekFrom + (peekGoal - peekFrom) * (1 - (1 - p) ** 3)
     if p >= 1
         SetTimer PeekTick, 0
-    hw := peek.Hwnd, h := Min(Round(peekN) + peekRim, IMG_SIZE)
-    if Round(peekN) < 1
+    hw := peek.Hwnd, h := Min(Round(peekN), IMG_SIZE)
+    if h < 1
         return DllCall("ShowWindow", "ptr", hw, "int", 0)   ; SW_HIDE
-    DllCall("UpdateLayeredWindow", "ptr", hw, "ptr", 0, "int64*", (peekEdge + peekRim - h) << 32 | (peekX & 0xFFFFFFFF)
+    DllCall("UpdateLayeredWindow", "ptr", hw, "ptr", 0, "int64*", (peekEdge - h) << 32 | (peekX & 0xFFFFFFFF)
         , "int64*", h << 32 | IMG_SIZE, "ptr", peekDC, "int64*", 0, "uint", 0
         , "uint*", 0x01FF0000, "uint", 2)          ; source rows 0 .. h-1; AC_SRC_OVER, alpha 255, AC_SRC_ALPHA; ULW_ALPHA
     if !DllCall("IsWindowVisible", "ptr", hw)      ; just below the pane: NOSIZE|NOMOVE|NOACTIVATE|SHOWWINDOW
