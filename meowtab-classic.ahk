@@ -2,7 +2,7 @@
 #SingleInstance Force
 ;@Ahk2Exe-SetName meowtab-classic
 ;@Ahk2Exe-SetDescription MeowTab Classic: list-style Alt+Tab with a mood picture
-;@Ahk2Exe-SetVersion 0.1.0
+;@Ahk2Exe-SetVersion 0.2.0
 ;@Ahk2Exe-SetCopyright MIT`, tingwei
 ;@Ahk2Exe-SetMainIcon assets\meowtab.ico
 ; Alt+Tab limited to the focused monitor. Windows cloaks windows on other virtual desktops, and
