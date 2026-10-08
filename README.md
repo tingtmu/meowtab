@@ -2,7 +2,7 @@
 
 **Alt+Tab the Windows 11 way, with a cat peeking over the edge.**
 
-MeowTab replaces Alt+Tab with a switcher that looks like the one built into Windows 11: live previews of your windows in a grid, on a frosted acrylic pane that follows light and dark mode. Then it adds one small, silly thing: a picture peeks over the pane's top-left edge, and it changes with how many windows you have open. A sleepy cat when you have a few, a cat sitting up straight when it's getting crowded. Swap in your own pictures and let your pet, your mascot or your boss judge your window count.
+MeowTab replaces Alt+Tab with a switcher that looks like the one built into Windows 11: live previews of your windows in a grid, on a frosted acrylic pane that follows light and dark mode. Then it adds one small, silly thing: a picture peeks over the pane's top-left edge, and it changes with how many windows you have open. A sleepy cat when you have a few, a cat sprawled belly up when it's getting crowded. Swap in your own pictures and let your pet, your mascot or your boss judge your window count.
 
 ![MeowTab](docs/meowtab.png)
 
@@ -41,7 +41,7 @@ MeowTab replaces Alt+Tab with a switcher that looks like the one built into Wind
   | --- | --- | --- |
   | few | 1-2 | a cat curled up asleep |
   | some | 3-7 | a cat lounging |
-  | many | 8+ | a cat sitting up, very much awake |
+  | many | 8+ | a cat sprawled belly up, too tired to care |
 
 - **Your own pictures.** Pick or drop them in the settings panel. **Clean background** cuts out a plain light background and crops to a square, built in.
 - **Keyboard and mouse.** Tab and the arrow keys move through the grid (Up and Down change rows), Delete closes a window and keeps the switcher open, Esc cancels. Hover a tile for its close button; click a tile to switch to it.
