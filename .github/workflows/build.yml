@@ -24,6 +24,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check the tag matches the exes' version
+        if: github.ref_type == 'tag'
+        shell: powershell
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          foreach ($f in 'meowtab.ahk', 'meowtab-classic.ahk') {
+            $m = Select-String -Path $f -Pattern '^;@Ahk2Exe-SetVersion\s+(\S+)' | Select-Object -First 1
+            if (-not $m) { throw "$f has no ;@Ahk2Exe-SetVersion line." }
+            $version = $m.Matches[0].Groups[1].Value
+            if ("v$version" -ne $env:TAG) { throw "Tag $env:TAG does not match $f, which is stamped $version." }
+          }
+
       - name: Fetch AutoHotkey and Ahk2Exe
         shell: pwsh
         run: |
@@ -60,8 +73,46 @@ jobs:
         shell: powershell
         run: .\build.ps1
 
+      # sha256sum format (lowercase hex, two spaces, path), listing the zip and the exes inside it.
+      - name: Write SHA256SUMS.txt
+        shell: powershell
+        run: |
+          $unpacked = "$env:RUNNER_TEMP\unpacked"
+          Expand-Archive dist\meowtab.zip -DestinationPath $unpacked
+          $lines = foreach ($item in @(
+              @('meowtab.zip', 'dist\meowtab.zip'),
+              @('meowtab/meowtab.exe', "$unpacked\meowtab\meowtab.exe"),
+              @('meowtab/meowtab-classic.exe', "$unpacked\meowtab\meowtab-classic.exe"))) {
+            "$((Get-FileHash $item[1] -Algorithm SHA256).Hash.ToLower())  $($item[0])"
+          }
+          $text = ($lines -join "`n") + "`n"
+          [IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", $text, (New-Object Text.UTF8Encoding $false))
+          Write-Host $text
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: meowtab
-          path: dist/meowtab.zip
+          path: |
+            dist/meowtab.zip
+            dist/SHA256SUMS.txt
           if-no-files-found: error
+
+  # The only job that can write to the repo. It makes a draft; a person publishes it.
+  release:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: meowtab
+          path: release
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --draft --verify-tag --title "$TAG" --notes "" release/meowtab.zip release/SHA256SUMS.txt

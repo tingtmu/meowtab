@@ -6,20 +6,23 @@ MeowTab replaces Alt+Tab with a switcher that looks like the one built into Wind
 
 ![MeowTab](docs/meowtab.png)
 
-> **Status: early preview (0.1).** MeowTab grew out of [peek-alttab](https://github.com/tingtmu/peek-alttab) and is being polished into a full app; see the [roadmap](ROADMAP.md). There's no installer yet: run it with AutoHotkey (see [Quick start](#quick-start)) or [build the exe](#building-the-exe) yourself.
+> **Status: early preview (0.1).** MeowTab grew out of [peek-alttab](https://github.com/tingtmu/peek-alttab) and is being polished into a full app; see the [roadmap](ROADMAP.md).
 
 ## Contents
 
 - [Features](#features)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
+- [Check the download](#check-the-download)
 - [Usage](#usage)
 - [Settings panel](#settings-panel)
 - [Use your own pictures](#use-your-own-pictures)
 - [Two styles](#two-styles)
 - [Settings](#settings)
+- [Remove MeowTab](#remove-meowtab)
 - [How it works](#how-it-works)
 - [Building the exe](#building-the-exe)
+- [Releasing](#releasing)
 - [Tests](#tests)
 - [Known issues](#known-issues)
 - [Roadmap](#roadmap)
@@ -47,22 +50,27 @@ MeowTab replaces Alt+Tab with a switcher that looks like the one built into Wind
 ## Requirements
 
 - Windows 11, 64-bit. The acrylic pane needs version 22H2 or later; older builds get a solid pane.
-- [AutoHotkey](https://www.autohotkey.com/) v2.0 or newer, to run the `.ahk` scripts. A [built exe](#building-the-exe) needs nothing else.
+- [AutoHotkey](https://www.autohotkey.com/) v2.0 or newer, only to run the `.ahk` scripts from source. The `.exe` files in the [download](#quick-start) need nothing else.
 
 ## Quick start
 
-1. Install [AutoHotkey v2](https://www.autohotkey.com/).
-2. Get the code: **Code > Download ZIP** on this page (then unzip it into a folder of your own, such as Documents), or
+1. Open the [latest release](https://github.com/tingtmu/meowtab/releases/latest). Its notes give the hashes and virus-scan links for the files (see [Check the download](#check-the-download)). Download `meowtab.zip` there, or straight from [this link](https://github.com/tingtmu/meowtab/releases/latest/download/meowtab.zip).
+2. Unzip it into a folder of your own, such as Documents. Keep the folder together: the exe finds its pictures beside it.
+3. Double-click `meowtab.exe`, then hold **Alt** and press **Tab**. The first time, MeowTab asks whether to put an icon on your desktop (it opens the settings panel); either answer is remembered.
 
-   ```
-   git clone https://github.com/tingtmu/meowtab.git
-   ```
+`meowtab-classic.exe` is the [other style](#two-styles). No AutoHotkey needed.
 
-3. Double-click `meowtab.ahk`. Hold **Alt** and press **Tab**.
+**From source instead** (with [AutoHotkey v2](https://www.autohotkey.com/) installed): get the code with **Code > Download ZIP** on this page (then unzip it into a folder of your own), or
+
+```
+git clone https://github.com/tingtmu/meowtab.git
+```
+
+and double-click `meowtab.ahk`.
 
 Double-click the tray icon (a sleepy cat) to open the [settings panel](#settings-panel). Right-click it to reload or exit, or to tick **Desktop icon**, which puts a shortcut on your desktop that opens the panel.
 
-**Run at login:** press `Win+R`, type `shell:startup`, and put a shortcut to `meowtab.ahk` in the folder that opens.
+**Run at login:** press `Win+R`, type `shell:startup`, and put a shortcut to `meowtab.exe` (or `meowtab.ahk`) in the folder that opens.
 
 **With GlazeWM (optional):** add it to `startup_commands` in GlazeWM's `config.yaml`:
 
@@ -82,6 +90,20 @@ WM_PROCESS=glazewm.exe
 
 - Windows doesn't let a normal app's hotkeys reach an elevated (administrator) window, so while one is focused you get the built-in Alt+Tab. To cover those windows too, run MeowTab as administrator.
 - It never connects to the network. Your settings and pictures stay on your PC, in `%APPDATA%\MeowTab`.
+
+## Check the download
+
+Each release has a `SHA256SUMS.txt`, and its notes repeat the SHA-256 of `meowtab.zip`, `meowtab.exe` and `meowtab-classic.exe`, each with a [VirusTotal](https://www.virustotal.com) report link. To check your download, put `meowtab.zip` and `SHA256SUMS.txt` in one folder and run this in PowerShell there (it prints `True` when they match):
+
+```
+(Get-FileHash .\meowtab.zip).Hash -eq (Select-String -Path .\SHA256SUMS.txt -Pattern ' meowtab\.zip$').Line.Split(' ')[0]
+```
+
+What that tells you, and what it doesn't:
+
+- The hashes come from the [GitHub Actions build](.github/workflows/build.yml) of the tagged source. A zip that matches is the file that was built and scanned; one that doesn't is a damaged or altered download, so don't run it.
+- A VirusTotal report is a set of automated scans. They are heuristic, so a clean report is no guarantee, and a few engines sometimes flag exes compiled from AutoHotkey scripts even though nothing is wrong. The report for each file is linked from the notes, and the source is all here to read.
+- The exes aren't code-signed, so Windows SmartScreen may show "Windows protected your PC" the first time. Choose **More info**, then **Run anyway**, once you've checked the hash.
 
 ## Usage
 
@@ -160,6 +182,14 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 
 `meowtab.ahk` also has a **Native look** block of constants just below the settings (pane padding, tile sizes and gaps, the selection ring, the close button, light and dark colours), each line commented, for tinkering.
 
+## Remove MeowTab
+
+If you ticked **Desktop icon** in the tray menu, untick it (that removes the shortcut). Then exit MeowTab from the tray and delete the folder you unzipped it into, and any startup shortcut you added. Your settings and pictures stay in `%APPDATA%\MeowTab`, as described under [Settings](#settings) and [Use your own pictures](#use-your-own-pictures), so a later install picks them up. To delete them too:
+
+```
+Remove-Item "$env:APPDATA\MeowTab" -Recurse
+```
+
 ## How it works
 
 For the curious, all in AutoHotkey v2 with plain Win32 calls:
@@ -182,6 +212,30 @@ It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path
 **Clean background** is C (`cutout.c`) compiled to machine code stored in `cutout-mcode.ahk`, so neither the scripts nor the exes need a compiler. `build-mcode.ps1` regenerates it from `cutout.c` with a pinned, hash-checked [Zig](https://ziglang.org); run it after editing `cutout.c`. CI checks the file is up to date.
 
 [GitHub Actions](.github/workflows/build.yml) builds the zip from a version tag, with pinned, hash-checked copies of AutoHotkey and Ahk2Exe.
+
+## Releasing
+
+1. Bump `;@Ahk2Exe-SetVersion` at the top of both `meowtab.ahk` and `meowtab-classic.ahk`, and commit.
+2. Tag and push only that tag (this clone also carries old peek-alttab tags, so never `--tags`):
+
+   ```
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+3. CI builds the zip and makes a **draft** release with `meowtab.zip` and `SHA256SUMS.txt`. It fails, with no release, if the tag and the stamped version differ.
+4. Download the draft's files and check them. `VT_API_KEY` must hold a [VirusTotal](https://www.virustotal.com/gui/my-apikey) API key (the free one is enough); set it once with `setx VT_API_KEY <key>` and open a new terminal, rather than typing it into a command you run. The run takes a few minutes:
+
+   ```
+   gh release download vX.Y.Z -D C:\tmp\meowtab-release
+   powershell -ExecutionPolicy Bypass -File tools\release-checks.ps1 C:\tmp\meowtab-release
+   ```
+
+   It checks every hash in `SHA256SUMS.txt`, uploads the zip and both exes to VirusTotal (public there), and prints a Markdown table. Paste it into the release notes, along with a line on what the scans do and don't show, and look into any detection.
+5. Publish the draft.
+6. Update the packages:
+   - Scoop: `& "$(scoop prefix scoop)\bin\checkver.ps1" -App meowtab -Dir .\bucket -Update` rewrites `bucket\meowtab.json` (version, URL, and the hash from `SHA256SUMS.txt`); commit and push it.
+   - WinGet: `wingetcreate update tingtmu.MeowTab --urls https://github.com/tingtmu/meowtab/releases/download/vX.Y.Z/meowtab.zip --version X.Y.Z --submit` opens the pull request against `microsoft/winget-pkgs`.
 
 ## Tests
 
