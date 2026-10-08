@@ -96,7 +96,7 @@ WM_PROCESS=glazewm.exe
 
 Both install the same files as the download and keep them up to date. Exit MeowTab from the tray before you update or uninstall it. Your settings and pictures stay in `%APPDATA%\MeowTab` through updates and uninstalls ([Remove MeowTab](#remove-meowtab) says how to delete them).
 
-**WinGet** (built into Windows 11):
+**WinGet** (built into Windows 11; waiting for Microsoft's approval, so until then use Scoop or the download):
 
 ```
 winget install tingtmu.MeowTab
