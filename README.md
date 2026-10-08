@@ -41,7 +41,7 @@ MeowTab replaces Alt+Tab with a switcher that looks like the one built into Wind
   | --- | --- | --- |
   | few | 1-2 | a cat curled up asleep |
   | some | 3-7 | a cat lounging |
-  | many | 8+ | a cat sprawled belly up, too tired to care |
+  | many | 8+ | a cat sprawled belly up, too tired to care... |
 
 - **Your own pictures.** Pick or drop them in the settings panel. **Clean background** cuts out a plain light background and crops to a square, built in.
 - **Keyboard and mouse.** Tab and the arrow keys move through the grid (Up and Down change rows), Delete closes a window and keeps the switcher open, Esc cancels. Hover a tile for its close button; click a tile to switch to it.
