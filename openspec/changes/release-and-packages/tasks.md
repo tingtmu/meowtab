@@ -41,7 +41,7 @@ Starts after `user-data-in-appdata` is committed.
 - [x] 3.3 Publish the release with its notes (what MeowTab is, the hash and scan block, and the limits). Fill in the Scoop hash, then commit and push `main`. Verify: an anonymous download of `releases/latest/download/meowtab.zip` matches `SHA256SUMS.txt`, and `scoop install bucket\meowtab.json` followed by `scoop uninstall meowtab` works on the dev machine without launching the app (the author's own Alt+Tab keeps running).
 - [ ] 3.4 Submit the WinGet manifest with the real URL and hash to `microsoft/winget-pkgs`. Verify: the PR's checks pass and it merges, or any Defender flag has been reported and handled.
 - [ ] 3.5 Add the README's "Install with WinGet or Scoop" section (install, update, uninstall, data note), then commit and push. Verify: its commands match the manifests.
-- [ ] 3.6 The author checks on another PC or VM without AutoHotkey, for both package managers: install, launch, change a setting, reinstall (the setting is kept), uninstall, then delete `%APPDATA%\MeowTab` as documented. Verify: the author reports every step passing. (Scoop passed on 2026-10-08: install, launch, setting kept through reinstall, uninstall.)
+- [ ] 3.6 The author checks on another PC or VM without AutoHotkey, for both package managers: install, launch, change a setting, reinstall (the setting is kept), uninstall, then delete `%APPDATA%\MeowTab` as documented. Verify: the author reports every step passing. (Scoop passed on 2026-10-08: install, launch, setting kept through reinstall, uninstall; after 2.3 the install starts MeowTab and asks about the desktop icon.)
 
 ## Workflow follow-up
 
