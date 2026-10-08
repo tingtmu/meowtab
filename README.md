@@ -111,7 +111,7 @@ scoop bucket add meowtab https://github.com/tingtmu/meowtab
 scoop install meowtab/meowtab
 ```
 
-Start it from the Start menu: **Scoop Apps > MeowTab** (or **MeowTab Classic**). Update with `scoop update` (it refreshes the bucket) and then `scoop update meowtab`, remove with `scoop uninstall meowtab`.
+MeowTab starts by itself once installed (and after each update); later, start it from the Start menu: **Scoop Apps > MeowTab** (or **MeowTab Classic**). Update with `scoop update` (it refreshes the bucket) and then `scoop update meowtab`, remove with `scoop uninstall meowtab`.
 
 ## Check the download
 
