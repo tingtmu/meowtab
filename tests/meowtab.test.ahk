@@ -77,7 +77,8 @@ Check("preview thumbnails registered while cycling", live > 0, true)
 Check("preview thumbnails released after Finish", thumbs.Length, 0)
 
 t := Gui("+ToolWindow", "alttab-test tool")   ; not Alt+Tab-eligible, so not in the list
-t.Show("w200 h100"), guis.Push(t)
+WinGetPos(&ax, &ay, , , h["A"])                ; on A's monitor: a tiling WM may put A-D on another one than the
+t.Show("x" ax + 20 " y" ay + 20 " w200 h100"), guis.Push(t)   ; tool window's default, and only this monitor is listed
 Act(t.Hwnd)                                ; recency of A-D is now: D A B C
 Step(1), Finish(true), Wait(300)
 Check("Alt+Tab from non-listed window goes to 1st (D)", names.Get(WinExist("A"), "?"), "D")
@@ -90,27 +91,20 @@ SendLevel 0
 Sleep 300                                  ; WatchAlt sees Alt released and switches
 Check("Alt+Tab, Alt+Right goes to 3rd (B)", names.Get(WinExist("A"), "?"), "B")
 
-SendLevel 1
-SendEvent "{LAlt down}"
-Step(1), ClickTile(h["C"]), Wait(200)      ; recency B D A C: the pane opens on D; a click on C switches at once
-open := cycling
-SendEvent "{LAlt up}"
-SendLevel 0
-Sleep 300
+; The mouse checks hold Alt without sending it: an injected Alt up right after a click's switch can stall for
+; minutes on some setups (seen over Remote Desktop with GlazeWM). Stopping WatchAlt keeps the pane open as a
+; held Alt would, and Finish(true) does what releasing it does.
+Step(1), SetTimer(WatchAlt, 0), ClickTile(h["C"]), Wait(300)   ; recency B D A C: the pane opens on D; a click on C switches at once
 Check("click on a tile switches to it (C)", names.Get(WinExist("A"), "?"), "C")
-Check("the click closed the pane", open, false)
+Check("the click closed the pane", cycling, false)
 
 e := Gui(, "alttab-test E"), e.Show("w300 h200"), guis.Push(e), names[e.Hwnd] := "E"
 Act(e.Hwnd)                                ; recency E C B D A
-SendLevel 1
-SendEvent "{LAlt down}"
-Step(1), n := wins.Length, ClickTile(e.Hwnd, true), Wait(400)   ; selection on C; E's close button
+Step(1), SetTimer(WatchAlt, 0), n := wins.Length, ClickTile(e.Hwnd, true), Wait(400)   ; selection on C; E's close button
 Check("click on X closes that window", DllCall("IsWindowVisible", "ptr", e.Hwnd), 0)
 Check("the pane stays open, one tile less", cycling " " wins.Length, "1 " (n - 1))
 Check("the selection stays on its window (C)", names.Get(wins[idx], "?"), "C")
-SendEvent "{LAlt up}"
-SendLevel 0
-Sleep 300
+Finish(true), Wait(300)                    ; releasing Alt
 Check("then releasing Alt switches to it (C)", names.Get(WinExist("A"), "?"), "C")
 
 Finish(false), Wait(0)                     ; Alt+Down / Up: a narrow work area wraps A-D two by two
