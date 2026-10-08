@@ -13,6 +13,7 @@ MeowTab replaces Alt+Tab with a switcher that looks like the one built into Wind
 - [Features](#features)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
+- [Install with WinGet or Scoop](#install-with-winget-or-scoop)
 - [Check the download](#check-the-download)
 - [Usage](#usage)
 - [Settings panel](#settings-panel)
@@ -90,6 +91,27 @@ WM_PROCESS=glazewm.exe
 
 - Windows doesn't let a normal app's hotkeys reach an elevated (administrator) window, so while one is focused you get the built-in Alt+Tab. To cover those windows too, run MeowTab as administrator.
 - It never connects to the network. Your settings and pictures stay on your PC, in `%APPDATA%\MeowTab`.
+
+## Install with WinGet or Scoop
+
+Both install the same files as the download and keep them up to date. Exit MeowTab from the tray before you update or uninstall it. Your settings and pictures stay in `%APPDATA%\MeowTab` through updates and uninstalls ([Remove MeowTab](#remove-meowtab) says how to delete them).
+
+**WinGet** (built into Windows 11):
+
+```
+winget install tingtmu.MeowTab
+```
+
+Then open a new terminal and run `meowtab` (or `meowtab-classic`). WinGet adds no Start menu entry; the first run offers a desktop icon instead. Update with `winget upgrade tingtmu.MeowTab`, remove with `winget uninstall tingtmu.MeowTab`.
+
+**Scoop** (buckets need git: `scoop install git`):
+
+```
+scoop bucket add meowtab https://github.com/tingtmu/meowtab
+scoop install meowtab/meowtab
+```
+
+Start it from the Start menu: **Scoop Apps > MeowTab** (or **MeowTab Classic**). Update with `scoop update` (it refreshes the bucket) and then `scoop update meowtab`, remove with `scoop uninstall meowtab`.
 
 ## Check the download
 
@@ -184,7 +206,7 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 
 ## Remove MeowTab
 
-If you ticked **Desktop icon** in the tray menu, untick it (that removes the shortcut). Then exit MeowTab from the tray and delete the folder you unzipped it into, and any startup shortcut you added. Your settings and pictures stay in `%APPDATA%\MeowTab`, as described under [Settings](#settings) and [Use your own pictures](#use-your-own-pictures), so a later install picks them up. To delete them too:
+If you ticked **Desktop icon** in the tray menu, untick it (that removes the shortcut). Then exit MeowTab from the tray and delete the folder you unzipped it into (or run the uninstall command under [Install with WinGet or Scoop](#install-with-winget-or-scoop)), and any startup shortcut you added. Your settings and pictures stay in `%APPDATA%\MeowTab`, as described under [Settings](#settings) and [Use your own pictures](#use-your-own-pictures), so a later install picks them up. To delete them too:
 
 ```
 Remove-Item "$env:APPDATA\MeowTab" -Recurse
