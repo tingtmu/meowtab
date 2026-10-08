@@ -15,26 +15,9 @@ Code map: `meowtab.ahk` holds settings, hotkeys and switching; `alttab-native.ah
 
 ## 1. Many windows: fixed-size tiles and a smooth scroll bar
 
-**Today:** tiles wrap into rows. When the rows don't fit, thumbnails shrink step by step (down to 40 %), then the grid scrolls row by row with no scroll bar. Shrinking hurts readability, and the pane's height changes with the window count.
+**Done**: from 9 windows the switcher shows a fixed 3-column grid with smooth scrolling and a Windows 11-style scroll bar. The layout and scrolling rules live in `openspec/specs/switcher-grid/spec.md`.
 
-**What Windows does** (observed on 25H2): up to 8 windows it wraps naturally (8 = 2 rows × 4). At 9 it switches to a 3 × 3 grid with a scroll bar, and from then on keeps 3 columns and adds rows.
-
-**Plan:**
-
-- **Two layouts.** Up to a threshold (default 8 windows), keep today's natural layout: tile widths follow each window's shape, rows centred. Above it, switch to an **overflow grid**: uniform cells (thumbnails aspect-fitted and centred in each cell), a fixed column count, rows growing downwards.
-- **Columns in the overflow grid:** 3, as Windows does, but allow up to 4 on a wide work area if 4 cells still fit at full size. Fixed columns make Up/Down a simple ± columns and keep tiles at one readable size; tiles never shrink.
-- **Fixed pane height.** The pane shows as many full rows as fit under the mood picture (usually 2-3) and keeps that height while you scroll, so nothing jumps and the picture always shows in full.
-- **Smooth scrolling.** Scroll position is a pixel offset animated with ease-out (about 120 ms) toward its target. The keyboard scrolls just enough to keep the selection fully visible (with a peek of the next row); the wheel moves one row per notch; dragging the bar scrolls directly.
-- **Scroll bar, Windows 11 style:** a thin rounded bar inside the pane's right padding, about 3 px when idle and 6 px when the mouse is near, fading out about a second after scrolling stops. Shown only when there's overflow.
-- **Partial rows:** a soft fade mask at the top and bottom edges of the viewport hints there's more.
-- **DWM thumbnails can't be clipped by our drawing.** For a tile cut by the viewport edge, shrink its `rcDestination` to the visible part and crop `rcSource` by the same proportion (`DWM_TNP_RECTSOURCE`), updated on each animation frame. Tiles fully outside are hidden (`fVisible = FALSE`) rather than unregistered, so scrolling back is instant.
-
-**Done when:**
-
-- 1-8 windows look as they do today.
-- 9 and more show the overflow grid with a working, auto-hiding scroll bar; the pane height stays constant from 9 to 50 windows; and the picture is never clipped on a 1080p screen at 150 %.
-- Keyboard, wheel and drag scrolling stay smooth (no frame over about 8 ms on the dev machine).
-- The test gains checks for the 8 → 9 switch, Up/Down in fixed columns, and scroll-follows-selection.
+**Discarded:** ~~up to 4 columns on a wide work area~~. Four tiles fit at full size on every ordinary 1080p screen, so this would almost always replace the 3 columns Windows uses.
 
 ## 2. Custom shortcut bindings
 
@@ -57,6 +40,7 @@ The user's brief: *an ambient, elegant minimalism with a soft and warm feeling, 
 
 - **Material:** keep the system acrylic, but lay a faint warm tint over it in our own surface (light: warm white about 10-18 %; dark: warm graphite) and an extremely fine grain (the old glass look had one) for a velvety, less plasticky feel.
 - **Edges and depth:** larger, continuous-looking corners (pane about 16 px, tiles about 12-14 px), a soft inner highlight along the top edge, and a deeper but very diffuse shadow. Avoid any hard 1 px lines. The 0.1 border refinement is the first step.
+- **Partial rows:** when the grid scrolls (9 or more windows), a soft fade at the pane's top and bottom edges hints there's more.
 - **Selection:** replace the hard 4 px accent ring with something gentler, such as a slightly lifted tile (subtle glow or shadow, about a 2 % scale-up) plus a thin, softly tinted accent outline. It must stay obvious at a glance, also for colour-blind users (test with a greyscale screenshot).
 - **Header strip:** blend it into the tile (a soft frosted gradient) instead of a solid white bar; titles in the medium weight of the title font.
 - **Motion:** the pane fades and scales in (about 120 ms, spring-like ease), the selection glides between tiles (about 90 ms), and the cat gives a small settle bounce when it lands. Everything is skipped when Windows' "Animation effects" setting is off.
@@ -76,14 +60,19 @@ Constraint: DWM thumbnails are always rectangular and drawn on top of our surfac
 
 The 0.1 preview already feels smooth, so this is a guardrail, not a project. Budgets to keep, on a 1080p / 150 % machine:
 
-| What | Budget | 0.1 today |
+| What | Budget | Measured |
 | --- | --- | --- |
-| Alt+Tab to pane visible | ≤ 30 ms | under 16 ms per open (measured) |
-| Moving the selection (full redraw) | ≤ 4 ms | about 1.6 ms for 20 tiles |
+| Alt+Tab to pane visible | ≤ 30 ms | 0.1: under 16 ms per open. 30 windows: 15 ms median, 28 ms max |
+| Moving the selection (full redraw) | ≤ 4 ms | 0.1: about 1.6 ms for 20 tiles at 100 %. 30 windows at 150 %: 4.7 ms median (6.9 ms before the grid) |
+| A scroll frame (keys, wheel, drag) | ≤ 8 ms | 30 windows: about 5 ms median; up to 4 % of frames over 8 ms, the worst 15-29 ms |
 | While closed | no timers, 0 % CPU | only the window-activation hook |
 | 200 opens | no growth in GDI / USER handles or memory | flat |
 
 When adding Velvet effects, cache what doesn't change per frame (tint, grain, header backgrounds) instead of re-rendering it. Measure with `QueryPerformanceCounter` before and after. If an effect breaks a budget, drop or simplify it.
+
+**How to measure**, so new numbers compare with these: time the code that makes each frame with `QueryPerformanceCounter`, on 30 demo windows. The open is `CollectWindows` plus `ShowPane`, not counting the wait for the next screen refresh. A Tab step is one `Step(1)`, every 33 ms for 2 s. A scroll frame is one `ScrollTick`: while Tab is held, over 24 wheel notches, and during a real drag of the scroll bar. Report the median, the maximum and how many frames go over 8 ms. Also time a fixed 5 ms of plain computation, which shows how often the machine itself pauses the process.
+
+The 30-window numbers are from 2026-10-09, over Remote Desktop: 1920 × 1080 at 150 %, about 30 frames a second, Balanced power plan. There, the plain computation went over 8 ms in 28 % of runs, so MeowTab's rare slow frames were most likely the machine's pauses. Scrolling looked uneven over Remote Desktop, as expected at 30 frames a second: judge it on the local screen first. If it still hitches there, try timing frames to the screen's refresh (AutoHotkey's timer ticks every 15.6 ms, which drifts against 60 Hz) and redrawing less per frame (drawing is about 4.6 of the 5 ms).
 
 ## 5. Release checks and easier installation
 

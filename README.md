@@ -140,7 +140,7 @@ Hold **Alt**, then:
 | `Esc` | Cancel without switching |
 | `Delete` | Close the selected window and keep the switcher open |
 
-With **Alt** still held, the mouse works too: click a tile to switch to it, or hover it and click its **×** to close that window. The mouse wheel scrolls when there are more windows than fit.
+With **Alt** still held, the mouse works too: click a tile to switch to it, or hover it and click its **×** to close that window. When there are more windows than fit, scroll with the mouse wheel or drag the scroll bar on the pane's right side.
 
 The first Tab picks the window you were in before. Apps that ask "save changes?" on close stay in the list until you answer.
 
@@ -267,7 +267,7 @@ From the repo root (close any running copy first; adjust the path if AutoHotkey 
 & "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe" /ErrorStdOut tests\meowtab.test.ahk | more
 ```
 
-`tests\meowtab.test.ahk` opens a few temporary windows, drives the real switching code and prints `PASS`/`FAIL` per check, ending with `ALL PASSED`. It covers recency order (including after a re-tile), Alt+Tab, Alt+Tab+Tab, the live previews being registered and released, the arrow keys, and switching and closing with the mouse. It needs an unlocked, connected desktop.
+`tests\meowtab.test.ahk` opens a few temporary windows, drives the real switching code and prints `PASS`/`FAIL` per check, ending with `ALL PASSED`. It covers recency order (including after a re-tile), Alt+Tab, Alt+Tab+Tab, the live previews being registered and released, the arrow keys, the grid for many windows with its scrolling and scroll bar, and switching and closing with the mouse. It needs an unlocked, connected desktop.
 
 `tests\cutout.test.ahk` checks **Clean background** against the expected results in `tests/cutout/`; CI runs it too.
 
@@ -275,14 +275,13 @@ From the repo root (close any running copy first; adjust the path if AutoHotkey 
 
 ## Known issues
 
-- With many windows the thumbnails shrink before the grid scrolls, and there's no scroll bar yet.
 - Preview corners are square at the bottom (Windows' own are rounded).
 - Ctrl+Alt+Tab (the switcher that stays open without holding Alt) isn't supported yet.
 - Only the focused monitor's windows are listed, so on a monitor without windows Alt+Tab does nothing.
 
 ## Roadmap
 
-Fixed-size tiles with a smooth scroll bar, a softer "Velvet" look, a new demo GIF and more are planned: see [ROADMAP.md](ROADMAP.md).
+A softer "Velvet" look, a new demo GIF and more are planned: see [ROADMAP.md](ROADMAP.md).
 
 ## License
 

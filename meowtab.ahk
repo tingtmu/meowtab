@@ -30,6 +30,7 @@ PANE_PAD    := 58      ; pane edge to the tiles on all sides (rows are centred, 
 TILE_GAP    := 26      ; between tiles, across and down
 TILE_H      := 0.22    ; tile height (header included), share of the work area's height
 TILE_MIN    := 0.40    ; too many rows: thumbnails shrink step by step to this share of their height, then the grid scrolls
+GRID_FROM   := 9, GRID_COLS := 3   ; from this many windows: tiles of one size (TILE_H tall, never shrunk), this many to a row
 PANE_MAX_W  := 0.84    ; widest pane, share of the work area's width
 ASPECT_MIN  := 0.75, ASPECT_MAX := 2.0  ; thumbnail slot width / height, clamped (else the window's own shape)
 TILE_MIN_W  := 134     ; narrowest tile (as native), so a narrow window's title still reads; its thumbnail is centred in it
@@ -44,14 +45,19 @@ CLOSE_W     := 40, CLOSE_X := 12, CLOSE_LINE := 1.25   ; close button (header-hi
 CLOSE_RGB   := "E81123", CLOSE_HOT := "C42B1C"   ; close button, and with the mouse on it
 PEEK_X      := 24      ; image's left edge, from the pane's left edge
 PEEK_MS     := 180, ANIM_TICK := 15   ; image slide-up / glide (ease-out cubic), animation timer period; ms
+SCROLL_MS   := 120     ; the grid's scroll to a new goal (ease-out cubic, on the same timer period); ms
+BAR_W       := 3, BAR_WIDE := 6   ; scroll bar (only when rows overflow): its width, and with the mouse near (in the right padding)
+BAR_EDGE    := 4, BAR_END := 12   ; its right edge from the pane's; its track's ends from the pane's top and bottom (clear of PANE_R)
+BAR_SHOW_MS := 1000, BAR_FADE_MS := 200, BAR_GROW_MS := 100   ; shown that long after the last scroll, then fades out; widening
 TEXT_HINT   := 4       ; GDI+ text: 4 AntiAlias (full CJK strokes), 3 AntiAliasGridFit; never ClearType on glass (fringes)
 ; Light / dark, as Windows mode (the taskbar's). pane: opaque fill where there's no acrylic (before build 22621);
 ; head / hot: header fill / hovered; slot: under the thumbnail; inner: the selection's inner stroke; ring: default accent;
-; edge: the pane's 1 px inner highlight, alpha at its top -> bottom; hair: a faint hairline outside it (alpha 0 = none)
+; edge: the pane's 1 px inner highlight, alpha at its top -> bottom; hair: a faint hairline outside it (alpha 0 = none);
+; bar: the scroll bar's thumb, the text colour at partial alpha (WinUI's ControlStrongFillColorDefault)
 LIGHT_PAL := {pane: "F3F3F3", text: "000000", head: ["FFFFFF", 200], hot: ["FFFFFF", 240], slot: ["FFFFFF", 90]
-    , inner: ["FFFFFF", 180], ring: "005FB8", edge: ["FFFFFF", 120, 36], hair: ["000000", 18]}
+    , inner: ["FFFFFF", 180], ring: "005FB8", edge: ["FFFFFF", 120, 36], hair: ["000000", 18], bar: ["000000", 114]}
 DARK_PAL  := {pane: "202020", text: "FFFFFF", head: ["000000", 166], hot: ["000000", 110], slot: ["000000", 70]
-    , inner: ["000000", 180], ring: "4CC2FF", edge: ["FFFFFF", 36, 10], hair: ["FFFFFF", 0]}
+    , inner: ["000000", 180], ring: "4CC2FF", edge: ["FFFFFF", 36, 10], hair: ["FFFFFF", 0], bar: ["FFFFFF", 139]}
 ; ==========================================================================
 
 CoordMode "Mouse", "Screen"
@@ -75,6 +81,8 @@ global grid := 0, tiles := []                  ; the open pane's layout (GridLay
 global thumbs := [], icons := Map(), surf := 0  ; per open: DWM thumbnails, app icons (hwnd -> [header, big]), drawing surface
 global hover := 0, hoverX := false             ; tile under the mouse (0 = none), and whether on its close button
 global mouseAt := 0, pressAt := 0, clickAt := 0, wheel := 0, tracking := false   ; mouse input, noted for the timers (see PaneMouse)
+global barA := 0, barW := 0, barOn := false, barT := 0, barNearSeen := false, barGrab := -1   ; scroll bar: opacity 0-1, width px, shown
+                                               ; (else fading); its last frame's tick and near state; a drag: the pointer's y in the thumb (-1 = none)
 global dark := ThemeDark(), pal := LIGHT_PAL, accentRgb := LIGHT_PAL.ring  ; Windows mode; this open's palette and ring colour
 DllCall("LoadLibrary", "str", "gdiplus")
 si := Buffer(24, 0), NumPut("uint", 1, si)   ; GdiplusStartupInput
@@ -95,6 +103,7 @@ PaneInit(g.Hwnd)
 OnMessage(0x14, PaneErase)                   ; WM_ERASEBKGND
 for msg in [0x200, 0x201, 0x202, 0x203, 0x2A3, 0x20A]   ; WM_MOUSEMOVE, WM_LBUTTONDOWN / UP / DBLCLK, WM_MOUSELEAVE, WM_MOUSEWHEEL
     OnMessage(msg, PaneMouse)
+OnMessage(0x21, PaneNoActivate)              ; WM_MOUSEACTIVATE: a press keeps the glass live
 OnMessage(0x1A, ThemeChanged)                ; WM_SETTINGCHANGE: light / dark mode switched
 ; The image lives in its own per-pixel-alpha window, stacked just below the pane; only its rows above the
 ; pane's top edge show. Click-through and never activated (LAYERED|TRANSPARENT|NOACTIVATE).
@@ -189,7 +198,8 @@ CloseSelected(i := 0) {
 IsOpen(hwnd) => WinExist(hwnd) && DllCall("IsWindowVisible", "ptr", hwnd)
 
 ; Lay out `wins` in the current monitor's work area and show the pane with the image over its top-left edge.
-; fresh = a new open (the image slides up), else the count changed (it glides to its new height).
+; fresh = a new open (the image slides up; the view starts where the selection shows, Shift+Tab at the bottom),
+; else the count changed (it glides to its new height; the view stays, and scrolls only to keep the selection).
 ShowPane(fresh) {
     static mon := 0                   ; an open stays on the monitor it opened on
     Critical
@@ -202,9 +212,17 @@ ShowPane(fresh) {
     n := wins.Length, k := MoodOf(n), sp := spans[k]
     up := imgs[k] ? Round(sp[1] + (sp[2] - sp[1]) * PeekShare(n)) : 0   ; image rows above the pane's edge
     art := Max(up - sp[1], 0)                                          ; of which art (the rest is padding)
-    GridLayout(r - l, b - t, art)
-    x := l + (r - l - grid.w) // 2, y := Max(t + (b - t - grid.h) // 2, t + grid.margin + art)   ; centred, under the art
+    maxArt := 0                                                        ; the grid's rows go under the tallest art at PEEK_MAX
+    for m, s in spans                                                  ; of the moods it can show (from GRID_FROM windows up)
+        if m >= MoodOf(GRID_FROM) && imgs[m]
+            maxArt := Max(maxArt, Round(s[1] + (s[2] - s[1]) * PEEK_MAX) - s[1])
+    GridLayout(r - l, b - t, art, maxArt, , fresh ? 0 : grid.off)
+    if fresh
+        grid.off := grid.goal := Reveal(idx)                           ; at once, no scroll
+    x := l + (r - l - grid.w) // 2, y := Max(t + (b - t - grid.h) // 2, t + grid.margin + (n >= GRID_FROM ? maxArt : art))   ; centred, under the art (the grid's at its highest peek: it never moves)
     PaneShow(x, y, fresh)
+    if (to := Reveal(idx)) != grid.goal                                ; a close moved the selection out of view
+        ScrollTo(to)
     PeekTo(k, up, x + Round(PEEK_X * grid.S), y, fresh)
 }
 
