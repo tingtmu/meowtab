@@ -1,10 +1,10 @@
 {
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Alt+Tab the Windows 11 way, with a cat peeking over the edge.",
     "homepage": "https://github.com/tingtmu/meowtab",
     "license": "MIT",
-    "url": "https://github.com/tingtmu/meowtab/releases/download/v0.1.0/meowtab.zip",
-    "hash": "65df233f75fb1428b1652bdeb135fd026deb5c2ae3911e009201d9e6e274f6b5",
+    "url": "https://github.com/tingtmu/meowtab/releases/download/v0.2.0/meowtab.zip",
+    "hash": "a3cf68168a0224ef5367b03319509179418a5c0f0893abc796dcd75d7e57c6a0",
     "extract_dir": "meowtab",
     "shortcuts": [
         [
