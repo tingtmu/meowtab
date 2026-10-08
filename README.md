@@ -273,6 +273,8 @@ From the repo root (close any running copy first; adjust the path if AutoHotkey 
 
 `tools\readme-shots.ahk` takes the screenshots above from the real pane. It lists only its own demo windows over a stand-in wallpaper, so none of your own windows can end up in an image.
 
+`tools\checks\run.ps1` repeats the many-windows checks: `shots` captures the grid in light and dark (8 to 30 windows, mid-scroll, a real drag of the scroll bar), and `timing` times each frame. Both list only their own demo windows, write to `build\checks\` and need the mouse and keyboard left alone for about a minute. `tools\checks\control.ahk` times plain computation for comparison.
+
 ## Known issues
 
 - Preview corners are square at the bottom (Windows' own are rounded).
