@@ -32,6 +32,8 @@ Starts after `user-data-in-appdata` is committed.
   Verify: it passes Scoop's schema, and Scoop's `checkver.ps1` reads it.
 - [x] 2.2 Prepare the `tingtmu.MeowTab` WinGet manifest (zip, nested portable, both exes with aliases `meowtab` and `meowtab-classic`, installed per user (`Scope` omitted: winget validate rejects it for portable), MIT) outside the repo. Verify: `winget validate` passes with a placeholder URL and hash.
 
+- [x] 2.3 From the author's clean-machine test: Scoop's `post_install` starts `$dir\meowtab.exe` (`$dir` is already the `current` folder then), so the first-run desktop-icon question appears without looking for the exe. WinGet portable has no post-install step. Verify: the schema validates, and a local `scoop install` starts `…\current\meowtab.exe` with its first-run question.
+
 ## 3. First release, v0.1.0 (each step waits for the author's OK)
 
 - [x] 3.1 Tag `v0.1.0` and push only that tag; `main` waits until 3.3, so the README's download link never points to a missing release. Verify: CI passes, and the draft holds `meowtab.zip` and `SHA256SUMS.txt`.
@@ -39,7 +41,7 @@ Starts after `user-data-in-appdata` is committed.
 - [x] 3.3 Publish the release with its notes (what MeowTab is, the hash and scan block, and the limits). Fill in the Scoop hash, then commit and push `main`. Verify: an anonymous download of `releases/latest/download/meowtab.zip` matches `SHA256SUMS.txt`, and `scoop install bucket\meowtab.json` followed by `scoop uninstall meowtab` works on the dev machine without launching the app (the author's own Alt+Tab keeps running).
 - [ ] 3.4 Submit the WinGet manifest with the real URL and hash to `microsoft/winget-pkgs`. Verify: the PR's checks pass and it merges, or any Defender flag has been reported and handled.
 - [ ] 3.5 Add the README's "Install with WinGet or Scoop" section (install, update, uninstall, data note), then commit and push. Verify: its commands match the manifests.
-- [ ] 3.6 The author checks on another PC or VM without AutoHotkey, for both package managers: install, launch, change a setting, reinstall (the setting is kept), uninstall, then delete `%APPDATA%\MeowTab` as documented. Verify: the author reports every step passing.
+- [ ] 3.6 The author checks on another PC or VM without AutoHotkey, for both package managers: install, launch, change a setting, reinstall (the setting is kept), uninstall, then delete `%APPDATA%\MeowTab` as documented. Verify: the author reports every step passing. (Scoop passed on 2026-10-08: install, launch, setting kept through reinstall, uninstall.)
 
 ## Workflow follow-up
 

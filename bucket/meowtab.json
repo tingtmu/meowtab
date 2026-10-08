@@ -16,6 +16,7 @@
             "MeowTab Classic"
         ]
     ],
+    "post_install": "Start-Process \"$dir\\meowtab.exe\"",
     "checkver": "github",
     "autoupdate": {
         "url": "https://github.com/tingtmu/meowtab/releases/download/v$version/meowtab.zip",

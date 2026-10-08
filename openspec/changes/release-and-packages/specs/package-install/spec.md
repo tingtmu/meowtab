@@ -7,14 +7,14 @@ Installing, updating and removing MeowTab through WinGet and Scoop on a Windows 
 ## ADDED Requirements
 
 ### Requirement: Install with Scoop
-MeowTab SHALL install from its own Scoop bucket in this repository, with both exes, the shipped pictures, and Start menu shortcuts for both switchers.
+MeowTab SHALL install from its own Scoop bucket in this repository, with both exes, the shipped pictures, and Start menu shortcuts for both switchers. Installing or updating SHALL start `meowtab.exe` from Scoop's `current` folder, so the user doesn't have to look for it and the first run's desktop-icon question appears right away.
 
 #### Scenario: Clean machine
 - **WHEN** on Windows without AutoHotkey the user runs `scoop bucket add meowtab https://github.com/tingtmu/meowtab` and then `scoop install meowtab/meowtab`
-- **THEN** the Start menu has MeowTab entries, and `meowtab.exe` starts, shows its tray icon and opens the switcher with the shipped pictures
+- **THEN** the Start menu has MeowTab entries, and `meowtab.exe` starts by itself, asks about the desktop icon, shows its tray icon and opens the switcher with the shipped pictures
 
 ### Requirement: Install with WinGet
-MeowTab SHALL install with `winget install tingtmu.MeowTab`, exposing both exes as the commands `meowtab` and `meowtab-classic`.
+MeowTab SHALL install with `winget install tingtmu.MeowTab`, exposing both exes as the commands `meowtab` and `meowtab-classic`. WinGet can't run anything after a portable install, so the README tells the user to run `meowtab` once.
 
 #### Scenario: Clean machine
 - **WHEN** on Windows without AutoHotkey the user runs `winget install tingtmu.MeowTab` and then `meowtab`
