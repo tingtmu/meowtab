@@ -33,7 +33,7 @@ The user's brief: *an ambient, elegant minimalism with a soft and warm feeling, 
 - **Edges and depth:** larger, continuous-looking corners (pane about 16 px, tiles about 12-14 px), a soft inner highlight along the top edge, and a deeper but very diffuse shadow. Avoid any hard 1 px lines. The 0.1 border refinement is the first step.
 - **Partial rows:** when the grid scrolls (9 or more windows), a soft fade at the pane's top and bottom edges hints there's more.
 - **Selection:** replace the hard 4 px accent ring with something gentler, such as a slightly lifted tile (subtle glow or shadow, about a 2 % scale-up) plus a thin, softly tinted accent outline. It must stay obvious at a glance, also for colour-blind users (test with a greyscale screenshot).
-- **Header strip:** blend it into the tile (a soft frosted gradient) instead of a solid white bar; titles in the medium weight of the title font.
+- **Header strip:** blend it into the tile (a soft frosted gradient) instead of a solid white bar; titles in the medium weight of the title font. Make the hovered header clearly visible too: in light mode today it barely differs (white at alpha 240 against 200), so only the close button shows the hover.
 - **Motion:** the pane fades and scales in (about 120 ms, spring-like ease), the selection glides between tiles (about 90 ms), and the cat gives a small settle bounce when it lands. Everything is skipped when Windows' "Animation effects" setting is off.
 - **Close button:** round and muted, turning red only under the cursor.
 

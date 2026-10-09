@@ -486,7 +486,8 @@ Title(gr, s, x, y, w, h, rgb) {   ; one line in x, y, w, h, cut with an ellipsis
 ; view cuts the tile, its source by the same share; hidden, not released, while out of view, and only one that just
 ; left is touched. DWM draws them over the acrylic and our pixels, unrounded. Handles in `thumbs` and t.thumb; a
 ; minimized window DWM kept no image of gets none (t.thumb -1: its source is under half its restored frame both ways;
-; a kept one can be far bigger, e.g. last shown maximized or snapped).
+; a kept one can be far bigger, e.g. last shown maximized or snapped), nor does a minimized one of a FLAT_MIN program
+; (Chrome, Edge: DWM keeps only a flat fill of it), so their big icon shows.
 ThumbsShow() {
     global thumbs
     e := Inset()
@@ -498,6 +499,10 @@ ThumbsShow() {
             continue
         }
         if !t.thumb {                              ; first sight
+            if t.iconic && FlatMin(ProgramOf(wins[i])) {
+                t.thumb := -1                      ; its program's name on the list
+                continue
+            }
             if DllCall("dwmapi\DwmRegisterThumbnail", "ptr", g.Hwnd, "ptr", wins[i], "ptr*", &id := 0)
                 continue                           ; failed (HRESULT != 0): the slot stays empty
             thumbs.Push(t.thumb := id), t.sw := t.src[3], t.sh := t.src[4]

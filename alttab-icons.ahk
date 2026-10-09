@@ -2,27 +2,34 @@
 ; there): found as the taskbar finds them, drawn with their alpha. Functions only.
 
 ; Icons for the listed windows this open hasn't loaded yet: icons[hwnd] := [header bitmap, big bitmap (minimized
-; windows only) or 0]. PaneFree disposes them.
+; windows only) or 0]. PaneFree disposes them. A minimized FLAT_MIN window (Chrome, Edge: its big icon shows, no
+; thumbnail covers it) without ICON_BIG has only smaller icons, soft scaled up: its big bitmap is its program's icon made
+; at the big size (else the header's, scaled). Only there: it costs about 2 ms a program.
 IconsLoad() {
     for i, hwnd in wins {
         if icons.Has(hwnd)
             continue
-        hi := WindowIcon(hwnd, &own), S := grid.S
-        icons[hwnd] := [hi ? IconBitmap(hi, Round(ICON_PX * S)) : 0, hi && tiles[i].iconic ? IconBitmap(hi, Round(BIG_ICON * S)) : 0]
+        hi := WindowIcon(hwnd, &own, &big), S := grid.S, sz := Round(BIG_ICON * S), hb := 0
+        if tiles[i].iconic && !big && FlatMin(exe := ProgramOf(hwnd))
+            && DllCall("shell32\SHDefExtractIconW", "wstr", exe, "int", 0, "uint", 0, "ptr*", &hb, "ptr", 0, "uint", 16 << 16 | sz)
+            hb := 0                                ; failed (HRESULT != 0)
+        icons[hwnd] := [hi ? IconBitmap(hi, Round(ICON_PX * S)) : 0, tiles[i].iconic && (hb || hi) ? IconBitmap(hb || hi, sz) : 0]
         if own
             DllCall("DestroyIcon", "ptr", hi)
+        if hb
+            DllCall("DestroyIcon", "ptr", hb)
     }
 }
 
 ; hwnd's icon: WM_GETICON (big, small2, small; a hung app can't stall us: 20 ms), its window class's, else its
-; program's (own := true: the caller destroys that one). 0 = none.
-WindowIcon(hwnd, &own) {
-    own := false
+; program's (own := true: the caller destroys that one; big := true: the window's ICON_BIG). 0 = none.
+WindowIcon(hwnd, &own, &big) {
+    own := big := false
     for t in [1, 2, 0]                             ; ICON_BIG, ICON_SMALL2, ICON_SMALL
         if !DllCall("SendMessageTimeoutW", "ptr", hwnd, "uint", 0x7F, "ptr", t, "ptr", 0, "uint", 2, "uint", 20, "ptr*", &hi := 0)
             break                                  ; timed out (SMTO_ABORTIFHUNG): don't wait again
         else if hi
-            return hi
+            return (big := t = 1, hi)
     if hi := DllCall("GetClassLongPtrW", "ptr", hwnd, "int", -14, "ptr") || DllCall("GetClassLongPtrW", "ptr", hwnd, "int", -34, "ptr")
         return hi                                  ; GCLP_HICON, GCLP_HICONSM
     sfi := Buffer(696, 0)                          ; SHFILEINFOW
@@ -38,6 +45,8 @@ ProgramOf(hwnd) {
     try return ProcessGetPath(pid)
     return ""
 }
+
+FlatMin(exe) => InStr(" " FLAT_MIN " ", " " RegExReplace(exe, ".*\\") " ")   ; exe's name is on FLAT_MIN ("" = no)
 
 ; Any HICON -> new sz x sz PARGB GDI+ bitmap with its alpha. DrawIconEx into a zeroed 32bpp DIB gives alpha icons
 ; premultiplied; legacy AND/XOR icons come out alpha 0 everywhere (on the glass: see-through), so their opacity

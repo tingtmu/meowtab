@@ -95,6 +95,15 @@ ThumbsSeen() {   ; "in view" if only tiles at least partly in the pane have a th
     return s whole
 }
 
+SameBits(a, b, sz) {   ; two sz x sz GDI+ bitmaps' pixels match exactly
+    rc := Buffer(16, 0), NumPut("int", sz, "int", sz, rc, 8), da := Buffer(32, 0), db := Buffer(32, 0)   ; BitmapData
+    DllCall("gdiplus\GdipBitmapLockBits", "ptr", a, "ptr", rc, "uint", 1, "int", 0xE200B, "ptr", da)   ; ReadOnly, 32bppPARGB
+    DllCall("gdiplus\GdipBitmapLockBits", "ptr", b, "ptr", rc, "uint", 1, "int", 0xE200B, "ptr", db)
+    n := DllCall("ntdll\RtlCompareMemory", "ptr", NumGet(da, 16, "ptr"), "ptr", NumGet(db, 16, "ptr"), "uptr", 4 * sz * sz, "uptr")
+    DllCall("gdiplus\GdipBitmapUnlockBits", "ptr", a, "ptr", da), DllCall("gdiplus\GdipBitmapUnlockBits", "ptr", b, "ptr", db)
+    return n = 4 * sz * sz
+}
+
 Thumbed() {   ; how many tiles have a thumbnail
     n := 0
     for t in tiles
@@ -313,6 +322,18 @@ Check("a window shown, then minimized: its tile gets a thumbnail", tiles[1].icon
 Check("a window created minimized: its tile gets none (its big icon shows), and none is kept", tiles[2].iconic " " tiles[2].thumb " " thumbs.Length, "1 -1 2")
 Check("a window maximized, then minimized: its last image is over twice as wide as its restored frame, and its tile keeps it"
     , tiles[3].iconic " " (tiles[3].sw > 2 * tiles[3].src[3]) " " (tiles[3].thumb > 0), "1 1 1")
+Finish(false), Wait(0)
+; Minimized Chrome and Edge leave DWM only a flat fill: their tiles get no thumbnail, by program name (FLAT_MIN), here
+; this test's own for one open, so MA gets none and B (not minimized) keeps its. MA gives no ICON_BIG now either: its
+; big icon is its program's made at the big size, not its small one scaled up.
+DllCall("SendMessageW", "ptr", ma.Hwnd, "uint", 0x80, "ptr", 1, "ptr", 0)   ; WM_SETICON: ICON_BIG none
+flat := FLAT_MIN, FLAT_MIN := RegExReplace(A_AhkPath, ".*\\"), Open(2, 1, Map(1, ma.Hwnd)), FLAT_MIN := flat
+Check("a minimized window of a FLAT_MIN program gets no thumbnail, one not minimized does", tiles[1].iconic " " tiles[1].thumb " " (tiles[2].thumb > 0) " " thumbs.Length, "1 -1 1 1")
+bigPx := Round(BIG_ICON * grid.S), DllCall("shell32\SHDefExtractIconW", "wstr", A_AhkPath, "int", 0, "uint", 0, "ptr*", &hi := 0, "ptr", 0, "uint", 16 << 16 | bigPx)
+progBm := IconBitmap(hi, bigPx), DllCall("DestroyIcon", "ptr", hi), softBm := IconBitmap(WindowIcon(ma.Hwnd, &own, &big), bigPx)
+Check("a minimized FLAT_MIN window without ICON_BIG: its big icon is its program's at the big size, not its small one scaled up"
+    , SameBits(icons[ma.Hwnd][2], progBm, bigPx) " " SameBits(icons[ma.Hwnd][2], softBm, bigPx) " " big, "1 0 0")
+DllCall("gdiplus\GdipDisposeImage", "ptr", progBm), DllCall("gdiplus\GdipDisposeImage", "ptr", softBm)
 Finish(false), Wait(0), ma.Destroy(), mb.Destroy(), mc.Destroy()
 
 ; The scroll bar. The real mouse goes to the screen's corner first: not near the bar, it can't hold off the fade.

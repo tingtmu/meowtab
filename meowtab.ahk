@@ -42,6 +42,7 @@ TILE_R      := 12      ; tile corner radius
 HEADER_H    := 40      ; header strip over the thumbnail; taller when the title font needs it (its line height + 24)
 ICON_PX     := 16, ICON_X := 12, TITLE_X := 36   ; header: app icon size and left edge, the title's left edge
 BIG_ICON    := 48      ; minimized window: its app icon, centred in the thumbnail slot (a thumbnail draws over it)
+FLAT_MIN    := "chrome.exe msedge.exe"   ; minimized, DWM keeps only a flat fill of these programs' (GPU-drawn) windows: no thumbnail, their big icon shows
 SEL_GAP     := 5, SEL_INNER := 2, SEL_RING := 4  ; selection, from the tile outwards: gap, inner stroke, accent ring
 CLOSE_W     := 40, CLOSE_X := 12, CLOSE_LINE := 1.25   ; close button (header-high), its X: size and stroke
 CLOSE_RGB   := "E81123", CLOSE_HOT := "C42B1C"   ; close button, and with the mouse on it
