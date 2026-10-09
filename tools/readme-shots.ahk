@@ -48,11 +48,8 @@ wins := [], idx := Min(2, made.Length), cycling := true, dark := which = "dark"
 for win in made
     wins.Push(win.Hwnd)
 ShowPane(true), Critical("Off")
-if dark                                            ; the hover look on tile 3 (the selection is tile 2)
-    hover := 3, hoverX := false, Render(surf), Present()
-Sleep 700
-if !dark                                           ; light: no hover look, the pane would light up the tile under a resting cursor
-    hover := 0, hoverX := false, mouseAt := 0, Render(surf), Present()
+Sleep 700                                          ; first the open's own hover pass, which would undo the look set here
+hover := dark ? 3 : 0, hoverX := false, mouseAt := 0, Render(surf), Present()   ; dark: the hover look on tile 3 (the selection is tile 2); light: none
 Sleep(100), DllCall("dwmapi\DwmFlush")
 g.GetPos(&px, &py, &pw, &ph), WinGetPos(&kx, &ky, &kw, &kh, peek.Hwnd)
 x0 := Max(px - 48, ml), y0 := Max(Min(ky, py) - 32, mt)   ; crop to the pane, the picture and a margin, inside that monitor

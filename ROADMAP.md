@@ -42,6 +42,7 @@ Constraint: DWM thumbnails are always rectangular and drawn on top of our surfac
 ### 3.2 Should users pick the look? Recommendation: yes, one small choice
 
 - Add a **LOOK** section to the settings panel with two picture cards, like the mood cards: **Velvet** (the default once it's polished) and **Windows 11** (today's faithful look). Both follow Windows' light and dark mode automatically (already done for Windows 11), so there is no separate light/dark switch.
+- **The panel must still fit.** At 1080p / 150 % the settings panel already scales down to fit (to about 0.80; at full size it's about 830 px tall against 720), and the LOOK row adds more. Work out how it fits before building it, for example a scroll bar or another layout; to be discussed.
 - Two visual options in one control isn't overwhelming; three or more, or separate colour knobs, would be.
 - Later, consider folding the classic list switcher (`meowtab-classic.ahk`) into the same picker as a third look ("List"). That would leave one exe and one tray icon instead of two separate apps, and simplify releases.
 
@@ -120,10 +121,7 @@ Production notes:
 
 ## Also on the list
 
-- **Hover:** show the hover state immediately when the pane opens under the cursor, not only after the mouse moves.
-- **Minimized windows:** verify their thumbnails live; Windows keeps a last image, otherwise MeowTab shows the big app icon.
 - **An empty monitor:** Alt+Tab on a monitor with no windows currently does nothing. Consider falling back to all monitors.
-- **Settings panel fit:** it scales down to fit, with room kept for a tiling WM's bar sized to the author's GlazeWM setup. Derive that room from the real work area instead.
 
 ## How to capture screenshots and the GIF
 

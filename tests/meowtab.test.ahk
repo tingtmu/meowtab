@@ -298,6 +298,23 @@ Open(9, 1, Map(9, hw.Hwnd)), ClickTile(hw.Hwnd, true), Wait(400)   ; H's close b
 Check("closing one of 9 windows goes back to the shaped layout", wins.Length " " Shaped() " " grid.end, "8 1 0")
 Finish(false), Wait(0)
 
+; Minimized windows, gone again before the next checks: MA shown first, so DWM keeps its last image; MB created minimized,
+; so DWM has only a placeholder of another size; MC maximized first, so its last image is far bigger than its restored
+; frame. Only MC is ever activated (maximizing does it), and the foreground goes back. The pane lists just the three.
+was := WinExist("A")
+ma := Gui(, "alttab-test MA"), ma.Show("NA w300 h200"), mb := Gui(, "alttab-test MB"), mb.Show("Hide w300 h200")
+mc := Gui(, "alttab-test MC"), mc.Show("NA w300 h200"), Sleep(300), DllCall("ShowWindow", "ptr", mc.Hwnd, "int", 3), Sleep(300)   ; SW_SHOWMAXIMIZED
+for w in [ma, mb, mc]
+    DllCall("ShowWindow", "ptr", w.Hwnd, "int", 7) ; SW_SHOWMINNOACTIVE
+Sleep 700                                  ; past the minimize animation, where Windows has it on
+Act(was)                                   ; back from MC
+Open(3, 1, Map(1, ma.Hwnd, 2, mb.Hwnd, 3, mc.Hwnd))
+Check("a window shown, then minimized: its tile gets a thumbnail", tiles[1].iconic " " (tiles[1].thumb > 0), "1 1")
+Check("a window created minimized: its tile gets none (its big icon shows), and none is kept", tiles[2].iconic " " tiles[2].thumb " " thumbs.Length, "1 -1 2")
+Check("a window maximized, then minimized: its last image is over twice as wide as its restored frame, and its tile keeps it"
+    , tiles[3].iconic " " (tiles[3].sw > 2 * tiles[3].src[3]) " " (tiles[3].thumb > 0), "1 1 1")
+Finish(false), Wait(0), ma.Destroy(), mb.Destroy(), mc.Destroy()
+
 ; The scroll bar. The real mouse goes to the screen's corner first: not near the bar, it can't hold off the fade.
 MouseMove(0, 0, 0)
 Open(12, 1), shown := barA, Wait(700), still := barA, Wait(800)          ; the fade starts BAR_SHOW_MS (1 s) after the open
@@ -315,6 +332,17 @@ Check("dragging the thumb to the track's top and bottom scrolls to 0 and the end
 DllCall("SendMessageW", "ptr", g.Hwnd, "uint", 0x202, "ptr", 0, "ptr", pt), Wait(100)   ; no physical button is down
 Check("the drag ends once the button is up, and the release clicks nothing", barGrab " " cycling, "-1 1")
 Finish(false), Wait(0)
+
+; Hover from the first frame, read on the open's line: ShowPane makes this thread Critical, so no mouse message's timer
+; has run yet. The pane lists A-D, as Open does: the desktop's other windows can't change the layout.
+Open(4, 1), t := tiles[2], g.GetClientPos(&px, &py), hx := px + t.x + t.w // 2, hy := py + TileY(t) + grid.th // 2, Finish(false), Wait(0)
+MouseMove(hx, hy, 0)                       ; tile 2's centre, the pane closed: the same windows open again in the same place
+wins := Repeat(4), idx := 1, cycling := true, ShowPane(true), got := hover " at " (mouseAt ? mouseAt[1] " " mouseAt[2] : "none")
+    , at := CursorAt(), Finish(false), Wait(0)
+Check("an open with the cursor resting on tile 2 hovers it in the first frame, at the cursor's place in the shown pane", got, "2 at " at[1] " " at[2])
+MouseMove(0, 0, 0)                         ; parked again, as the scroll bar checks left it
+wins := Repeat(4), idx := 1, cycling := true, ShowPane(true), got := hover, Finish(false), Wait(0)
+Check("an open with the cursor away from the pane hovers nothing", got, 0)
 
 ; User data goes to DATA_DIR (the user's AppData\MeowTab in real use), never next to the script.
 Check("data folder is new and empty", FileExist(DATA_DIR) "", "")
@@ -412,6 +440,38 @@ Check("a letter typed while the pane stays open doesn't reach the Edit, and the 
 Press("{Esc}"), Press("q")
 Check("after Esc, a letter reaches the Edit", ed.Value, "q")
 Check("Ctrl and Alt aren't left down after a Ctrl+Alt+Tab open and Esc", GetKeyState("Ctrl") " " GetKeyState("Alt"), "0 0")
+
+; The settings panel's room under GlazeWM: its top + bottom outer gaps from config.yaml's text (GlazeGaps), at 150 % (dpi 144).
+glazeCfg := "
+(
+gaps:
+  # Whether to scale the gaps with the DPI of the monitor.
+  scale_with_dpi: true
+
+  # Gap between adjacent windows.
+  inner_gap: '3px'
+
+  # Gap between windows and the screen edge.
+  outer_gap:
+    top: '46px'
+    right: '10px'
+    bottom: '6px'
+    left: '10px'
+
+window_effects:
+  focused_window:
+    border:
+      enabled: true
+      color: '#2da44e'
+)"
+Check("GlazeWM's gaps from the author's config: top 46 + bottom 6, scaled", GlazeGaps(glazeCfg, 144), 78)
+Check("quoted keys, as YAML allows (`"gaps`":, 'outer_gap':, `"top`":), read the same"
+    , GlazeGaps(StrReplace(StrReplace(StrReplace(glazeCfg, "gaps:", "`"gaps`":"), "outer_gap:", "'outer_gap':"), "top:", "`"top`":"), 144), 78)
+Check("the { top, bottom } flow form reads the same",GlazeGaps("gaps:`n  outer_gap: { top: '46px', right: '10px', bottom: '6px', left: '10px' }  # bar`n", 144), 78)
+Check("scale_with_dpi: false leaves them unscaled", GlazeGaps(StrReplace(glazeCfg, "scale_with_dpi: true", "scale_with_dpi: false"), 144), 52)
+Check("a gaps: block with only single_window_outer_gap, or no gaps: block, is 0"
+    , GlazeGaps("gaps:`n  inner_gap: 3`n  single_window_outer_gap:`n    top: 46`n    bottom: 6`n", 144) " " GlazeGaps("general:`n  focus_follows_cursor: false`n", 144), "0 0")
+Check("a % value or empty text can't tell", "[" GlazeGaps(StrReplace(glazeCfg, "top: '46px'", "top: '5%'"), 144) "] [" GlazeGaps("", 144) "]", "[] []")
 
 ; The settings panel's SHORTCUTS row: a click on a field captures the next combination, with every key blocked and the
 ; hotkeys suspended meanwhile. Keys go only while a capture runs: otherwise Alt+Tab would switch and Esc close the panel.

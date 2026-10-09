@@ -144,15 +144,61 @@ PanelIssues() {   ; what settings.ini had wrong at startup, for the hint line ("
     return n ? "settings.ini: " SETTINGS_ISSUES[1] (n > 1 ? "  (+" n - 1 " more)" : "") : ""
 }
 
-; 0 if the window (client w x h) fits the work area of the monitor it opens on, else the scale (0.5 to 1) that makes it fit.
-; Dpx(60) stays free for a tiling WM: GlazeWM floats and centres new windows in its workspace (the work area less its bar
-; and gaps, 78 px at 150 % on the author's setup) and clips them to it.
+; 0 if the window (client w x h) fits the work area of the monitor it opens on, less keep, else the scale (0.5 to 1) that
+; makes it fit. keep: Dpx(16) of air; while GlazeWM runs, at least its top + bottom outer gaps, as it floats and centres new
+; windows in the work area less those and clips them to it (Dpx(60) if its config can't tell).
 PanelFit(w, h) {
-    g := pnl.gui
+    g := pnl.gui, keep := Dpx(16), text := ""
+    if ProcessExist("glazewm.exe") {
+        try text := FileRead(EnvGet("USERPROFILE") "\.glzr\glazewm\config.yaml", "UTF-8")   ; GlazeWM's default path
+        keep := (gaps := GlazeGaps(text, A_ScreenDPI)) = "" ? Dpx(60) : Max(keep, gaps)
+    }
     g.Show("Hide w" w " h" h), g.GetPos(, , , &wh), g.GetClientPos(, , , &ch)
     mi := Buffer(40, 0), NumPut("uint", 40, mi), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
-    room := NumGet(mi, 32, "int") - NumGet(mi, 24, "int") - Dpx(60), nc := wh - ch   ; nc: caption and frame, which don't scale
+    room := NumGet(mi, 32, "int") - NumGet(mi, 24, "int") - keep, nc := wh - ch   ; nc: caption and frame, which don't scale
     return h + nc <= room ? 0 : Max((room - nc) / h, 0.5)
+}
+
+; GlazeWM's top + bottom outer gap in px from config.yaml's text: gaps > outer_gap, in block or { } flow form (not
+; single_window_outer_gap), times dpi / 96 under scale_with_dpi (on by default). No outer_gap, or no gaps block, is 0 as
+; in GlazeWM. "" = can't tell: empty text, a % or anything else unreadable. Only these shapes, no YAML parser.
+GlazeGaps(text, dpi) {
+    if text = ""
+        return ""
+    inGaps := false, sub := 0, kid := "", scale := true, og := 0
+    for line in StrSplit(text, "`n", "`r") {
+        line := RegExReplace(line, "\s+#.*")          ; comments (a quoted '#2da44e' keeps its #: no space before it)
+        if !RegExMatch(line, "^(\s*)['`"]?([\w-]+)['`"]?\s*:\s*(.*?)\s*$", &m)   ; a key, quoted or not
+            continue
+        if !m.Len[1] {                                ; a top-level key starts or ends the gaps block
+            if (inGaps := m[2] = "gaps") && m[3] != ""   ; gaps: { … } on one line
+                return ""
+            continue
+        }
+        if !inGaps
+            continue
+        if !sub || m.Len[1] <= sub {                  ; a key of gaps itself
+            sub := m.Len[1], kid := m[2]
+            if kid = "scale_with_dpi"
+                scale := m[3] != "false"
+            else if kid = "outer_gap" {
+                og := Map()
+                for side in ["top", "bottom"]         ; the flow form; the block form's lines follow
+                    if RegExMatch(m[3], "\b" side "\s*:\s*([^,}\s]+)", &v)
+                        og[side] := v[1]
+            }
+        } else if kid = "outer_gap" && (m[2] = "top" || m[2] = "bottom")
+            og[m[2]] := m[3]
+    }
+    if !og
+        return 0
+    px := 0
+    for side in ["top", "bottom"] {                   ; '46px', 46px or 46
+        if !og.Has(side) || !RegExMatch(Trim(og[side], "'`""), "^(\d+(?:\.\d+)?)(px)?$", &n)
+            return ""
+        px += n[1]
+    }
+    return Round(px * (scale ? dpi / 96 : 1))
 }
 
 PanelShow(w, h) {   ; centred on the active window's monitor (or the cursor's), never above or left of its work area

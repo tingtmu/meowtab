@@ -53,15 +53,16 @@ PaneShow(x, y, fresh) {
         BarReset(grid.end > 0)
     }
     IconsLoad()
-    hover := 0, hoverX := false                    ; tiles moved: PaneHover finds the one under the mouse again
+    pt := Buffer(8), DllCall("GetCursorPos", "ptr", pt), mx := NumGet(pt, 0, "int") - x, my := NumGet(pt, 4, "int") - y   ; client, at this
+    mouseAt := mx >= 0 && mx < grid.w && my >= 0 && my < grid.h ? [mx, my] : 0   ; show's x, y (CursorAt would measure from where it was); 0 off the pane
+    hover := HitTest(Content(mouseAt), &onX), hoverX := onX   ; tiles moved: the one under the resting mouse, from the first frame
     s := SurfaceMake(grid.w, grid.h), Render(s)
     old := surf, surf := s, SurfaceFree(old)
     ThumbsClear(), ThumbsShow()                    ; afresh for this layout; before Show: no frame of empty slots
     g.Show("NA x" x " y" y " w" grid.w " h" grid.h)
     DllCall("SendMessageW", "ptr", g.Hwnd, "uint", 0x86, "ptr", 1, "ptr", 0)   ; WM_NCACTIVATE(TRUE), every show: live acrylic
     Present()
-    if !fresh                                      ; e.g. a click on X: the tile that slid under the mouse
-        mouseAt := CursorAt(), SetTimer(PaneHover, -1)
+    SetTimer(PaneHover, -1)                        ; leave tracking and the scroll bar's near state start; the hover stays
 }
 
 PaneFree() {   ; on hide: everything one open made; a scroll stops where it is, the scroll bar's fade and drag too
@@ -483,7 +484,9 @@ Title(gr, s, x, y, w, h, rgb) {   ; one line in x, y, w, h, cut with an ellipsis
 ; One DWM thumbnail per tile in view, fitted into its slot (upscaled if need be, as native), the source cropped to
 ; the visible frame. Registered the first time its slot shows, then placed on each call (each frame): cut where the
 ; view cuts the tile, its source by the same share; hidden, not released, while out of view, and only one that just
-; left is touched. DWM draws them over the acrylic and our pixels, unrounded. Handles in `thumbs` and t.thumb.
+; left is touched. DWM draws them over the acrylic and our pixels, unrounded. Handles in `thumbs` and t.thumb; a
+; minimized window DWM kept no image of gets none (t.thumb -1: its source is under half its restored frame both ways;
+; a kept one can be far bigger, e.g. last shown maximized or snapped).
 ThumbsShow() {
     global thumbs
     e := Inset()
@@ -500,8 +503,10 @@ ThumbsShow() {
             thumbs.Push(t.thumb := id), t.sw := t.src[3], t.sh := t.src[4]
             if t.whole                             ; minimized, or no usable frame: all of it, as DWM keeps it
                 DllCall("dwmapi\DwmQueryThumbnailSourceSize", "ptr", id, "int64*", &sz := 0), t.sw := sz & 0xFFFFFFFF, t.sh := sz >> 32
+            if t.iconic && t.sw * 2 < t.src[3] && t.sh * 2 < t.src[4]   ; DWM kept no image (created minimized: a small
+                DllCall("dwmapi\DwmUnregisterThumbnail", "ptr", id), thumbs.Pop(), t.thumb := -1   ; fixed placeholder): the big icon instead
         }
-        t.on := ThumbPlace(t, y, e)
+        t.on := t.thumb != -1 && ThumbPlace(t, y, e)
     }
 }
 
