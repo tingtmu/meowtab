@@ -1,17 +1,18 @@
-# run.ps1 runs a checks script (shots.ahk or timing.ahk) against a source root, which stays untouched: the AutoHotkey wrapper
-# (and, for timing, an instrumented COPY of the root's sources) is generated under build\checks\gen\. Options:
+# run.ps1 runs a checks script (shots.ahk, timing.ahk, stay.ahk or keys.ahk) against a source root, which stays untouched: the
+# AutoHotkey wrapper (and, for timing and stay, an instrumented COPY of the root's sources) is generated under build\checks\gen\. Options:
 #   shots   [-Out <dir>] [-Tag <name>] [-Theme light,dark] [-Scenes abcdm]       timing  [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...]
+#   stay    [-Out <dir>] [-Tag <name>]   (stay-open timings)                     keys    (Win+Q: no Start menu, no menu bar)
 # -Root is the source folder to check (default: the repo root); point it at another one, such as an exported older commit, to compare
 # before and after. -Tag names the run (default: the root's folder name); -Out defaults to build\checks\<tag>; -Ahk defaults to the
 # first AutoHotkey v2 found under $env:ProgramFiles or $env:LOCALAPPDATA\Programs; -Validate only load-checks (no windows, no input).
-# Run from the repo root:  powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 shots|timing [-Root <dir>] [-Tag <name>] ...
+# Run from the repo root:  powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 shots|timing|stay|keys [-Root <dir>] ...
 #                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 shots -Theme light -Scenes a
 #                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 timing -Validate
-# Exit code: 0 ok, 2 the 2-minute safety exit, 3 an error in the run, 4 the privacy guard refused a capture, 5 a stray AutoHotkey
-# window was already on screen (nothing was started). Keep hands off the mouse and keyboard while it runs (about 40 s, per theme
-# for shots), except with -Validate.
+# Exit code: 0 ok, 1 a check failed (keys), 2 the 2-minute safety exit, 3 an error in the run, 4 the privacy guard refused a capture
+# (shots) or no screen, so nothing was shown or sent (stay, keys), 5 a stray AutoHotkey window was already on screen (nothing was
+# started). Keep hands off the mouse and keyboard while it runs (about 40 s, per theme for shots; 25 s for keys), except with -Validate.
 param(
-    [Parameter(Mandatory, Position = 0)][ValidateSet('shots', 'timing')][string]$Mode,
+    [Parameter(Mandatory, Position = 0)][ValidateSet('shots', 'timing', 'stay', 'keys')][string]$Mode,
     [string]$Root,                               # the source folder to check (default: the repo root), e.g. an exported older commit
     [string]$Out, [string]$Tag,
     [string[]]$Theme = @('light', 'dark'), [string]$Scenes = 'abcdm',
@@ -62,7 +63,7 @@ if ($Mode -eq 'shots') {
     if ($Validate) { $runs.Add([string[]]@($Out, ($Theme -join ','), $Scenes)) }
     else { foreach ($t in $Theme) { $runs.Add([string[]]@($Out, $t, $Scenes)) } }
 }
-else {
+elseif ($Mode -eq 'timing') {
     # An instrumented copy: each frame function that exists is renamed <name>__orig and wrapped by a function of the old name that
     # times the call, so timers and callers go through it. The root's files are only read.
     $src = Join-Path $gen 'src'
@@ -91,6 +92,28 @@ else {
     [IO.File]::WriteAllText("$gen\wrap.ahk", $wrappers, $utf8)
     $main = "#Include $src\meowtab.ahk`n#Include $gen\wrap.ahk`n#Include $checks\lib.ahk`n#Include $checks\timing.ahk`n"
     $runs.Add([string[]]@($Out, $Tag))
+}
+elseif ($Mode -eq 'stay') {
+    # A copy in which meowtab.ahk's CollectWindows is renamed CollectWindows__orig: stay-seam.ahk defines it again, listing only the
+    # demo windows (meowtab-classic.ahk has its own, and isn't included). The root's files are only read.
+    $src = Join-Path $gen 'src'
+    New-Item -ItemType Directory $src | Out-Null
+    $rx = [regex]'(?m)^CollectWindows\('
+    foreach ($f in Get-ChildItem -LiteralPath $Root -Filter *.ahk -File) {
+        $t = [IO.File]::ReadAllText($f.FullName)
+        if ($f.Name -eq 'meowtab.ahk') {
+            if ($rx.Matches($t).Count -ne 1) { throw "expected one CollectWindows( definition in $Root\meowtab.ahk" }
+            $t = $rx.Replace($t, 'CollectWindows__orig(', 1)
+        }
+        [IO.File]::WriteAllText((Join-Path $src $f.Name), $t, $utf8)
+    }
+    $main = "#Include $src\meowtab.ahk`n#Include $checks\lib.ahk`n#Include $checks\stay-seam.ahk`n#Include $checks\stay.ahk`n"
+    $runs.Add([string[]]@($Out, $Tag))
+}
+else {
+    # keys: the app starts with SWITCH_KEYS=Win+Q in the new data folder (the stay-open shortcut stays the default, Ctrl+Alt+Tab).
+    $main = 'DirCreate(DATA_DIR), IniWrite("Win+Q", DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS")' + "`n#Include $Root\meowtab.ahk`n#Include $checks\keys.ahk`n"
+    $runs.Add([string[]]@())
 }
 
 $wrapper = Join-Path $gen "$Mode.ahk"

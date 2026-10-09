@@ -1,5 +1,5 @@
-; Usage: none, it is #Included by shots.ahk and timing.ahk (run them with tools\checks\run.ps1, from the repo root).
-; tools\checks\lib.ahk: shared by shots.ahk and timing.ahk (the many-windows-grid checks 4.1 captures, 4.2 timing).
+; Usage: none, it is #Included by shots.ahk, timing.ahk and stay.ahk (run them with tools\checks\run.ps1, from the repo root).
+; tools\checks\lib.ahk: shared by shots.ahk and timing.ahk (the many-windows-grid checks 4.1 captures, 4.2 timing), and stay.ahk.
 ; Adapted from tools\readme-shots.ahk: demo windows, the stand-in wallpaper, the privacy guard (ForeignAbove), Capture;
 ; plus opening the pane on the demo windows and real mouse input. #Included by the wrapper that run.ps1 generates, after the
 ; root's meowtab.ahk, so the switcher's globals and functions are in scope. Nothing here writes into the source root.
