@@ -7,7 +7,7 @@
 ;     cropped to the pane and the picture, and not taken if a window that isn't ours is above the wallpaper inside the crop.
 ;     [windows]: how many demo windows to list (default 5; 12 and more reach PEEK_MAX).
 ;   settings: the settings panel alone (its own pixels), with default settings: it runs on an empty temporary data
-;     folder, so the user's own settings.ini is neither read nor written. At this display's own scale: docs\settings.png's 816x986 framing needs a 150 % display.
+;     folder, so the user's own settings.ini is neither read nor written. At this display's own scale: docs\settings.png's 723x986 framing needs a 150 % display.
 ; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows]
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk settings <out.png>
 ; (default out: docs\meowtab.png / docs\meowtab-dark.png). Keep hands off the mouse and keyboard for ~5 s.

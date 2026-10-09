@@ -142,7 +142,11 @@ Hold **Alt**, then:
 
 With **Alt** still held, the mouse works too: click a tile to switch to it, or hover it and click its **×** to close that window. When there are more windows than fit, scroll with the mouse wheel or drag the scroll bar on the pane's right side.
 
+**Ctrl+Alt+Tab** opens a switcher that stays open once you let go, so you can take your time. The same keys and the mouse work in it, **Enter** switches to the selected window, and **Esc** closes it without switching. A click outside the pane closes it too, and the click goes on to whatever you clicked, so clicking a window switches to that one. While it's open, other keys do nothing.
+
 The first Tab picks the window you were in before. Apps that ask "save changes?" on close stay in the list until you answer.
+
+Both shortcuts can be changed in the [settings panel](#settings-panel), for example to Win+Q if a window manager uses Alt+Tab. `meowtab-classic` keeps Alt+Tab and has no stay-open switcher.
 
 ## Settings panel
 
@@ -154,6 +158,7 @@ Double-click the tray icon, or right-click it and choose **Settings…**. The de
 - **Clean background** (`✧ Clean`, on a card with your own picture) removes a plain light background and crops the picture to a square.
 - **Peek height.** How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes preview it with your own pictures.
 - **Title font.** Any installed font, at 10 to 24 pt.
+- **Shortcuts.** Click **Switch windows** or **Stay open**, then press the new combination; **Esc** keeps the old one. Switching takes Alt, Ctrl or Win with one key, and the same with Shift goes back (shown under it). A combination that can't work, such as one with Esc or the arrows or one already in use, is refused, and the line under the cards says why. **Defaults** puts back Alt+Tab and Ctrl+Alt+Tab. `meowtab-classic` has no Shortcuts section.
 
 **Save** (or Enter) writes `%APPDATA%\MeowTab\settings.ini` and reloads it. **Cancel** (or Esc) changes nothing. **Reset to defaults** removes the panel's settings from `settings.ini`; it never deletes pictures and keeps lines you added yourself, such as `WM_PROCESS`.
 
@@ -195,6 +200,8 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 | `MANY_FROM` | `8` | both | panel | Fewest windows that count as "many" (2 ≤ `SOME_FROM` < `MANY_FROM` ≤ 30). |
 | `PEEK_MIN` | `0.72` | main | panel | Share of the picture shown above the pane with 1 window. |
 | `PEEK_MAX` | `0.95` | main | panel | Share shown at `MANY_FROM + 4` windows and beyond (0.30-1.00, above `PEEK_MIN`). |
+| `SWITCH_KEYS` | `Alt+Tab` | main | panel | The switcher's shortcut: Alt, Ctrl or Win held with one key; with Shift it goes back. |
+| `STAY_KEYS` | `Ctrl+Alt+Tab` | main | panel | Opens the switcher that stays open once you let go. |
 | `IMG_SIZE` | `250` / `100` | main / classic | ini | Picture size in pixels. |
 | `WM_PROCESS` | empty | both | ini | Exit when this process is gone, e.g. `glazewm.exe`. |
 | `LIST_WIDTH` | `700` | classic | ini | List width in pixels. |
@@ -267,7 +274,7 @@ From the repo root (close any running copy first; adjust the path if AutoHotkey 
 & "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe" /ErrorStdOut tests\meowtab.test.ahk | more
 ```
 
-`tests\meowtab.test.ahk` opens a few temporary windows, drives the real switching code and prints `PASS`/`FAIL` per check, ending with `ALL PASSED`. It covers recency order (including after a re-tile), Alt+Tab, Alt+Tab+Tab, the live previews being registered and released, the arrow keys, the grid for many windows with its scrolling and scroll bar, and switching and closing with the mouse. It needs an unlocked, connected desktop.
+`tests\meowtab.test.ahk` opens a few temporary windows, drives the real switching code and prints `PASS`/`FAIL` per check, ending with `ALL PASSED`. It covers recency order (including after a re-tile), Alt+Tab, Alt+Tab+Tab, the live previews being registered and released, the arrow keys, the grid for many windows with its scrolling and scroll bar, and switching and closing with the mouse. It also checks the shortcuts: how `settings.ini` values are read and refused, Alt+Tab and a custom Ctrl+Q driven with real keys, and the stay-open switcher (Enter, Esc, a shortcut while it's open, typing blocked, a click outside). In the settings panel it captures shortcuts with real keys: Alt+Tab opens no switcher, refused combinations keep the old value, Esc cancels, and no way of ending a capture leaves the hotkeys suspended. It needs an unlocked, connected desktop.
 
 `tests\cutout.test.ahk` checks **Clean background** against the expected results in `tests/cutout/`; CI runs it too.
 
@@ -278,7 +285,6 @@ From the repo root (close any running copy first; adjust the path if AutoHotkey 
 ## Known issues
 
 - Preview corners are square at the bottom (Windows' own are rounded).
-- Ctrl+Alt+Tab (the switcher that stays open without holding Alt) isn't supported yet.
 - Only the focused monitor's windows are listed, so on a monitor without windows Alt+Tab does nothing.
 
 ## Roadmap

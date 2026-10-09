@@ -157,12 +157,31 @@ PaintButton(label, kind, dc, w, h, st) {   ; kind 0 = text link, 1 = quiet, 2 = 
     PanelText(dc, label, 0, 0, w, h, pnl.f[kind = 2 ? "num" : "body"], kind || hov ? LOOK.text : LOOK.muted, 0x25)
 }
 
+PaintKeys(j, dc, w, h, st) {   ; a shortcut field: what it's for, then its keys (a prompt while capturing)
+    fh := Dpx(30), r := fh / 2, x := Dpx(14), hov := st & 0x10000, cap := pnl.cap && pnl.cap.j = j, gr := Canvas(0, dc)
+    FillRound(gr, 0.5, 0.5, w - 1, fh - 1, r, Argb(cap ? LOOK.pill : hov ? LOOK.pillHi : "F4EEE4", 255))
+    Stroke(gr, 0.5, 0.5, w - 1, fh - 1, r, 1, Lip(220, cap || hov ? LOOK.pillRim : LOOK.line, 210))
+    FocusRing(gr, w, fh, r, st)
+    DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
+    label := j = 1 ? "Switch windows" : "Stay open", sz := Buffer(8)
+    of := DllCall("SelectObject", "ptr", dc, "ptr", pnl.f["small"], "ptr")
+    DllCall("GetTextExtentPoint32W", "ptr", dc, "str", label, "int", StrLen(label), "ptr", sz), DllCall("SelectObject", "ptr", dc, "ptr", of)
+    lw := NumGet(sz, 0, "int") + 2                    ; +2: END_ELLIPSIS can want a pixel more
+    PanelText(dc, label, x, 0, lw, fh, pnl.f["small"], LOOK.muted)
+    PanelText(dc, cap ? "press a shortcut…" : pnl.keys[j], x + lw + Dpx(8), 0, w - 2 * x - lw - Dpx(8), fh
+        , pnl.f[cap ? "small" : "num"], cap ? LOOK.muted : LOOK.text, 0x26)
+}
+
+PaintKeysLine(refused, dc, w, h, st) {   ; under the shortcut fields: going back (under the first), or why a capture was refused (across both)
+    PanelText(dc, refused ? pnl.why : "back: " KeysBack(pnl.keys[1]), Dpx(14), 0, w - Dpx(28), h, pnl.f["small"], LOOK.muted)
+}
+
 PaintHint(dc, w, h, st) {
     PanelText(dc, PanelHintText(), 0, 0, w, h, pnl.f["small"], LOOK.muted)
 }
 
-PanelHintText() {   ; hovered element's hint, else the last message, else the standing hint
-    if pnl.hover && (e := pnl.el.Get(pnl.hover, 0)) && e.hint != ""
+PanelHintText() {   ; hovered element's hint (unless the message is about it: pnl.held), else the last message, else the standing hint
+    if pnl.hover && pnl.hover != pnl.held && (e := pnl.el.Get(pnl.hover, 0)) && e.hint != ""
         return e.hint
     if pnl.note != ""
         return pnl.note

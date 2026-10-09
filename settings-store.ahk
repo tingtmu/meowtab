@@ -3,11 +3,12 @@
 ; defined here are set late in the auto-execute section, so SettingsLoad must not rely on them).
 
 ; Keys settings.ini may set: [name, kind, low, high]. A key applies only if the running script defines it
-; (PEEK_* exist in meowtab.ahk only, IMG_ROWS in meowtab-classic.ahk only). The panel edits the first seven.
+; (PEEK_* and *_KEYS exist in meowtab.ahk only, IMG_ROWS in meowtab-classic.ahk only). The panel edits the first seven and *_KEYS.
 SettingsSchema() => [["FONT_NAME", "font"], ["FONT_SIZE", "int", 10, 24], ["IMG_PREFIX", "prefix"]
     , ["SOME_FROM", "int", 2, 29], ["MANY_FROM", "int", 3, 30], ["PEEK_MIN", "num", 0.3, 1], ["PEEK_MAX", "num", 0.3, 1]
     , ["LIST_WIDTH", "int", 300, 4000], ["MAX_ROWS", "int", 3, 50], ["PREVIEW_W", "int", 0, 4000]
-    , ["IMG_SIZE", "int", 40, 600], ["IMG_ROWS", "int", 0, 50], ["WM_PROCESS", "process"]]
+    , ["IMG_SIZE", "int", 40, 600], ["IMG_ROWS", "int", 0, 50], ["WM_PROCESS", "process"]
+    , ["SWITCH_KEYS", "keys"], ["STAY_KEYS", "keys"]]
 
 ; Where the user's settings and pictures live, so replacing the app folder keeps them. A script may set DATA_DIR
 ; before including meowtab.ahk (the test and readme-shots do); read here, not at top level, so SettingsLoad sees it.
@@ -45,7 +46,7 @@ SettingsLoad() {
             SETTINGS_ISSUES.Push(s[1] " = " raw ": " why)
         SettingsSet(s[1], v)
     }
-    SettingsPair("SOME_FROM", "MANY_FROM"), SettingsPair("PEEK_MIN", "PEEK_MAX")
+    SettingsPair("SOME_FROM", "MANY_FROM"), SettingsPair("PEEK_MIN", "PEEK_MAX"), KeysPair()
     if SETTINGS_ISSUES.Length
         SettingsWarn(SETTINGS_ISSUES)
 }
@@ -74,6 +75,8 @@ SettingsCheck(s, raw, def, &why) {
         if raw = "" || RegExMatch(raw, "i)^[^\\/:*?`"<>|]{1,80}\.exe$")
             return raw
         return (why := "expected a process name like glazewm.exe", def)
+    case "keys":                                             ; a clash between the two is checked once both are read
+        return (why := KeysParse(raw, s[1] = "STAY_KEYS", "", &keys, &hk)) ? (why .= ", using " def, def) : keys
     }
 }
 
@@ -136,7 +139,7 @@ SettingsReset() {
         return ""
     try {
         for i, s in SettingsSchema()
-            if i <= 7
+            if i <= 7 || s[2] = "keys" && SettingsHas(s[1])     ; the shortcuts only where they apply: Classic keeps them
                 IniDelete file, "settings", s[1]
         rest := "", sections := ""
         try rest := IniRead(file, "settings")
@@ -146,6 +149,53 @@ SettingsReset() {
     } catch as e
         return e.Message
     return ""
+}
+
+; ----- Shortcuts -----
+
+; A shortcut as text, modifiers in any order and case ("shift+alt+tab") -> keys: its readable form, the modifiers in the
+; order Win, Ctrl, Alt, Shift, then AHK's name for the key ("Alt+Shift+Tab"); hk: its hotkey name ("!+Tab"). stay: the
+; stay-open shortcut, else the switch one; other: the other one's readable form, to refuse a clash ("" = no check).
+; Loading, registering and the panel all go through it. "" = ok, else why it can't be used, for the user.
+KeysParse(text, stay, other, &keys, &hk) {
+    parts := StrSplit(text, "+", " `t"), key := parts.Length ? parts.Pop() : "", all := "+", keys := hk := "", held := 0
+    for p in parts
+        all .= p "+"
+    for i, m in ["Win", "Ctrl", "Alt", "Shift"]
+        if InStr(all, "+" m "+")
+            keys .= m "+", hk .= SubStr("#^!+", i, 1), held += i < 4
+    name := GetKeyName(key), vk := GetKeyVK(key)
+    if key = "" || StrLen(hk) != parts.Length                ; no key, or a word that isn't a modifier (or one twice)
+        || name ~= "i)^[LR]?(Win|Control|Alt|Shift)$|Button|Wheel"   ; a modifier or the mouse as the key
+        return "not a shortcut like Alt+Tab"
+    if !(vk || GetKeySC(key))                                ; this keyboard layout lacks it: Hotkey() would refuse it
+        return key " isn't a key on this keyboard"
+    keys .= StrLen(name) = 1 ? StrUpper(name) : name, hk .= name
+    if !held
+        return "it needs Alt, Ctrl or Win"
+    if !stay && held > 1
+        return "switching takes only one of Alt, Ctrl and Win"
+    if !stay && InStr(keys, "Shift+")
+        return "Shift is kept for going back"
+    if vk = 0x1B || vk = 0x0D || vk = 0x2E || vk >= 0x25 && vk <= 0x28   ; Esc, Enter, Delete, the arrows (numpad ones too)
+        return name " is used inside the switcher"
+    if InStr(keys, "Win+") && name = "L"
+        return "Windows keeps Win+L for locking the screen"
+    if other != "" && keys = other
+        return (stay ? "switching" : "the stay-open shortcut") " already uses it"
+    if other != "" && (stay ? keys = KeysBack(other) : KeysBack(keys) = other)
+        return stay ? "going back already uses it" : "going back (" KeysBack(keys) ") is the stay-open shortcut"
+    return ""
+}
+
+KeysBack(keys) => RegExReplace(keys, "[^+]+$", "Shift+$0")   ; the switch shortcut -> going back (Shift is last of the modifiers)
+
+KeysPair() {   ; the stay-open shortcut must differ from switching and going back, else both go back to their defaults
+    if !SETTINGS_DEFAULTS.Has("STAY_KEYS")
+        || !(why := KeysParse(stay := SettingsGet("STAY_KEYS"), true, SettingsGet("SWITCH_KEYS"), &keys, &hk))
+        return
+    SETTINGS_ISSUES.Push("STAY_KEYS = " stay ": " why ", using " SETTINGS_DEFAULTS["SWITCH_KEYS"] " and " SETTINGS_DEFAULTS["STAY_KEYS"])
+    SettingsSet("SWITCH_KEYS", SETTINGS_DEFAULTS["SWITCH_KEYS"]), SettingsSet("STAY_KEYS", SETTINGS_DEFAULTS["STAY_KEYS"])
 }
 
 ; ----- Pictures -----

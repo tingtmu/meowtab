@@ -22,6 +22,8 @@ IMG_SIZE   := 250     ; image peeking over the pane's top-left edge, in pixels
 PEEK_MIN   := 0.72    ; share of the image's art (transparent padding ignored) above the pane at 1 window,
 PEEK_MAX   := 0.95    ; rising evenly to this at MANY_FROM + 4 windows and beyond (0.30 .. 1.00)
 WM_PROCESS := ""      ; optional: script exits when this process is gone, e.g. "glazewm.exe" ("" = never)
+SWITCH_KEYS := "Alt+Tab"      ; Win, Ctrl or Alt held + a key: opens the pane, moves on (with Shift: back); let go to switch
+STAY_KEYS   := "Ctrl+Alt+Tab" ; opens a pane that stays open once let go: Enter switches, Esc closes
 SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
 ; ==========================================================================
 
@@ -111,18 +113,31 @@ global peek := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08080020")
 global peekDC := DllCall("CreateCompatibleDC", "ptr", 0, "ptr")   ; holds the shown image for UpdateLayeredWindow
 global peekK := 0, peekN := 0, peekFrom := 0, peekGoal := 0, peekT := 0, peekX := 0, peekEdge := 0   ; see PeekTo
 SetTimer WarmUp, -200                        ; once startup is done: GDI+'s cold start, off the first Alt+Tab
+global sticky := false                       ; opened by the stay-open shortcut (Stay): no held key ends it
+global stayIH := InputHook("L0 I")           ; meanwhile it blocks every key but the modifiers (L0: keeps no text, no length limit); the
+stayIH.VisibleNonText := false               ; pane's hotkeys win over it. Keys that type nothing too. I: the script's own level-0 sends (the mask key) pass.
+                                             ; An InputHook blocks no modifier unless KeyOpt says so: their release must reach Windows, or they stick
+stayIH.KeyOpt("{LAlt}{RAlt}{LWin}{RWin}", "N"), stayIH.OnKeyDown := (*) => Send("{Blind}{vkE8}")   ; masked: a lone Alt / Win opens no menu bar / Start
+PaneHotkeys("Off")                           ; the pane's keys: created off, so while it's closed no key waits on this script
+StayHotkeys("Off")                           ; Enter and a press off a stay-open pane: created off too, no mouse hook while closed
+KeysRegister()                               ; the shortcuts, from SWITCH_KEYS and STAY_KEYS
 
-!Tab::Step(1)
-!+Tab::Step(-1)
-
-#HotIf cycling
-!Esc::Finish(false)
-!Delete::CloseSelected()
-!Right::Step(1)
-!Left::Step(-1)
-!Down::StepRow(1)
-!Up::StepRow(-1)
-#HotIf
+; The switch shortcut (SWITCH_KEYS) and with Shift, going back, and the stay-open one (STAY_KEYS): hook hotkeys ($), always on,
+; also while the pane is open. The ones registered before are turned off first, so a new value applies at once.
+KeysRegister() {
+    global holdVKs
+    static on := []
+    HotIf()
+    for name in on
+        Hotkey name, "Off"
+    KeysParse(SWITCH_KEYS, false, "", &keys, &hk)
+    on := ["$" hk, "$+" hk]
+    Hotkey on[1], (*) => Step(1), "On"
+    Hotkey on[2], (*) => Step(-1), "On"
+    holdVKs := Map("#", [0x5B, 0x5C], "^", [0x11], "!", [0x12])[SubStr(hk, 1, 1)]   ; WatchAlt's: either Win key, Ctrl, Alt
+    KeysParse(STAY_KEYS, true, "", &keys, &hk), on.Push("$" hk)
+    Hotkey on[3], (*) => Stay(), "On"
+}
 
 ; Tab / Shift+Tab / Right / Left: the next / previous tile, wrapping. The first press opens the pane.
 Step(dir) {
@@ -133,7 +148,7 @@ Step(dir) {
     wins := CollectWindows()
     if wins.Length = 0
         return
-    cycling := true, opens += 1
+    cycling := true, opens += 1, PaneHotkeys("On")
     idx := 0                          ; current window not in the list: first Tab picks item 1
     fg := DllCall("GetAncestor", "ptr", WinExist("A"), "uint", 3, "ptr")   ; GA_ROOTOWNER
     for i, hwnd in wins
@@ -143,7 +158,8 @@ Step(dir) {
         }
     idx := idx = 0 && dir < 0 ? wins.Length : Mod(idx - 1 + dir + wins.Length, wins.Length) + 1
     ShowPane(true)
-    SetTimer WatchAlt, 20
+    if !sticky                        ; the stay-open mode: no held key to watch
+        SetTimer WatchAlt, 20
 }
 
 ; Down / Up: the tile in the row below / above whose centre is closest across; nothing past the last / first row.
@@ -154,15 +170,61 @@ StepRow(d) {
         SelectTile(Nearest(r, tiles[idx].x + tiles[idx].w / 2))
 }
 
-WatchAlt() {
-    if DllCall("GetAsyncKeyState", "int", 0x12, "short") >= 0   ; VK_MENU: OS state, covers injected Alt
-        Finish(true)
+WatchAlt() {   ; the switch shortcut's held key (holdVKs) let go: switch
+    for vk in holdVKs
+        if DllCall("GetAsyncKeyState", "int", vk, "short") < 0   ; OS state, covers injected keys
+            return
+    Finish(true)
+}
+
+; The stay-open shortcut (STAY_KEYS): opens as the switch shortcut's first press does, but sticky: no held key ends it,
+; Enter switches, Esc or a press off the pane closes it, other keys do nothing. Over a held pane: that one stays.
+Stay() {
+    global sticky
+    Critical
+    if sticky                         ; pressed again: on to the next tile, as the shortcuts do
+        return Step(1)
+    sticky := true                    ; before Step: then it starts no watcher
+    cycling ? SetTimer(WatchAlt, 0) : Step(1)
+    if !(sticky := cycling)           ; no window to list
+        return
+    stayIH.Start(), StayHotkeys("On")
+}
+
+ClickOutside(*) {   ; a press off the stay-open pane (on the picture too: it's click-through) closes it; ~ lets the click go on
+    MouseGetPos , , &win
+    if win != g.Hwnd
+        Finish(false)
+}
+
+; The pane's keys, whatever is held with them: *Tab (with Shift: back), *Esc, *Delete, the arrows. On only while it's open (Step's
+; first press, Finish): under a #HotIf instead, every such key in any app would wait for this script's thread to say whether it's
+; open, typing would lag while the script is busy, and Windows drops a keyboard hook that keeps it waiting.
+PaneHotkeys(state) {
+    static keys := Map("*Tab", (*) => Step(GetKeyState("Shift") ? -1 : 1), "*Esc", (*) => Finish(false)
+        , "*Delete", (*) => GetKeyState("Ctrl") && GetKeyState("Alt") || CloseSelected()   ; not the Delete of Ctrl+Alt+Del
+        , "*Right", (*) => Step(1), "*Left", (*) => Step(-1), "*Down", (*) => StepRow(1), "*Up", (*) => StepRow(-1))
+    HotIf()
+    for k, f in keys
+        Hotkey k, f, state
+}
+
+; The stay-open mode's: *Enter (it has no key to let go of) and ~*LButton / ~*RButton / ~*MButton (ClickOutside). On only while a
+; stay-open pane is open, so no mouse hook otherwise. HotIf(): these and the pane's keys are global, whichever thread switches them.
+StayHotkeys(state) {
+    HotIf()
+    Hotkey "*Enter", (*) => Finish(true), state
+    for b in ["LButton", "RButton", "MButton"]
+        Hotkey "~*" b, ClickOutside, state
 }
 
 Finish(activate) {
-    global cycling
+    global cycling, sticky
     Critical                          ; a pending mouse timer then finds `cycling` off
+    PaneHotkeys("Off")                ; first: a pane key pressed from now on reaches the app, as once the pane is closed
     SetTimer WatchAlt, 0
+    if sticky                         ; the stay-open mode's key block and hotkeys go with it
+        sticky := false, stayIH.Stop(), StayHotkeys("Off")
     PeekHide(), g.Hide()
     PaneFree()                        ; thumbnails, icons, surface, mouse state
     cycling := false

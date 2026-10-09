@@ -5,6 +5,7 @@
 DATA_DIR := A_Temp "\meowtab-test-" A_TickCount   ; a new, empty data folder: the test never reads or changes the user's own
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))   ; gone again however the run ends
 #Include %A_LineFile%\..\..\meowtab.ahk
+A_IconHidden := true   ; no tray icon, no TrayTip: the settings warnings the bad-value checks provoke stay out of the notification centre
 
 global fails := 0, names := Map()
 
@@ -123,6 +124,42 @@ Columns() {   ; every tile as wide as the first, right under the one GRID_COLS b
         if t.w != tiles[1].w || i > GRID_COLS && t.x != tiles[i - GRID_COLS].x
             return "not in columns"
     return "in columns"
+}
+
+; A shortcut through KeysParse: "readable hotkey-name", or why it's refused.
+Parsed(text, stay := false, other := "") => (why := KeysParse(text, stay, other, &keys, &hk)) = "" ? keys " " hk : why
+
+; Real keys, sent so that our own hotkeys see them; then their threads run. A held key stays held across calls.
+Press(s, ms := 100) => (SendLevel(1), SendEvent("{Blind}" s), SendLevel(0), Wait(ms))
+
+Field(j) {   ; the open settings panel's shortcut field j (1 = switching, 2 = staying open)
+    for hwnd, e in pnl.el
+        if e.kind = "keys" && e.j = j
+            return e.ctl
+}
+
+; settings.ini's shortcut lines ("" = none).
+KeysLines() => Trim(IniRead(DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS", "") " " IniRead(DATA_DIR "\settings.ini", "settings", "STAY_KEYS", ""))
+
+; What fn's keys do to the panel: "menu mode" if they put its thread there (GetGUIThreadInfo: GUI_INMENUMODE 0x4, GUI_SYSTEMMENUMODE 0x8),
+; else "no menu mode". That mode holds this thread up, timers too, so a helper process watches and ends it with an Alt tap.
+MenuModeDuring(fn) {
+    helper := DATA_DIR "\menu-watch.ahk", out := DATA_DIR "\menu-watch.txt"
+    FileOpen(helper, "w").Write("
+    (
+    #NoTrayIcon
+    seen := 'no menu mode', t := A_TickCount, info := Buffer(A_PtrSize = 8 ? 72 : 48)
+    while seen = 'no menu mode' && A_TickCount - t < 2000 {
+        NumPut('uint', info.Size, info)
+        if DllCall('GetGUIThreadInfo', 'uint', A_Args[1], 'ptr', info) && NumGet(info, 4, 'uint') & 0xC
+            seen := 'menu mode', SendEvent('{LAlt down}{LAlt up}')
+        Sleep 20
+    }
+    FileAppend seen, A_Args[2]
+    )")
+    Run('"' A_AhkPath '" "' helper '" ' DllCall("GetWindowThreadProcessId", "ptr", pnl.gui.Hwnd, "ptr", 0, "uint") ' "' out '"', , , &pid)
+    Wait(500), fn(), ProcessWaitClose(pid, 5)
+    return FileExist(out) ? FileRead(out) : "no answer"
 }
 
 guis := [], h := Map()
@@ -302,6 +339,125 @@ Check("else falls back to the app folder", MoodImage("chill", "some"), A_ScriptD
 FileCopy src, DATA_DIR "\images\chill_some.png"
 Check("a user set of the same name wins", MoodImage("chill", "some"), DATA_DIR "\images\chill_some.png")
 Check("the app's settings.ini and images\ are unchanged", AppFiles(), before)
+
+; Shortcuts: SWITCH_KEYS / STAY_KEYS as settings.ini has them (KeysParse), registered by KeysRegister. Custom ones are
+; checked holding Ctrl: if a check goes wrong, a held Win or Alt could open Start or a menu bar.
+Check("shortcuts in any order and case come back readable, with their hotkey names"
+    , Parsed("alt+tab") ", " Parsed("shift+alt+ctrl+tab", true) ", " Parsed("win+q"), "Alt+Tab !Tab, Ctrl+Alt+Shift+Tab ^!+Tab, Win+Q #q")
+Check("Alt+Esc is refused", Parsed("Alt+Esc"), "Escape is used inside the switcher")
+Check("Shift+Tab is refused", Parsed("Shift+Tab"), "it needs Alt, Ctrl or Win")
+Check("Ctrl+Alt+Q is refused for switching", Parsed("Ctrl+Alt+Q"), "switching takes only one of Alt, Ctrl and Win")
+Check("Alt+Shift+Q is refused for switching", Parsed("Alt+Shift+Q"), "Shift is kept for going back")
+Check("Win+L is refused", Parsed("Win+L"), "Windows keeps Win+L for locking the screen")
+Check("staying open on Alt+Shift+Tab is refused while switching is Alt+Tab", Parsed("Alt+Shift+Tab", true, "Alt+Tab"), "going back already uses it")
+IniWrite "Alt+Esc", DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS"
+SettingsLoad()                             ; a reload: the built-in shortcuts are still set
+Check("SWITCH_KEYS=Alt+Esc in settings.ini: a reload gives Alt+Tab and reports the line"
+    , SWITCH_KEYS ", " SETTINGS_ISSUES.Length ": " (SETTINGS_ISSUES.Length ? SETTINGS_ISSUES[1] : "")
+    , "Alt+Tab, 1: SWITCH_KEYS = Alt+Esc: Escape is used inside the switcher, using Alt+Tab")
+IniWrite "Ctrl+Tab", DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS"
+IniWrite "Ctrl+Shift+Tab", DATA_DIR "\settings.ini", "settings", "STAY_KEYS"
+SettingsLoad()
+Check("switching on Ctrl+Tab and staying open on Ctrl+Shift+Tab clash: both get their defaults", SWITCH_KEYS ", " STAY_KEYS ", " SETTINGS_ISSUES.Length
+    , "Alt+Tab, Ctrl+Alt+Tab, 1")
+IniDelete DATA_DIR "\settings.ini", "settings", "STAY_KEYS"
+
+iw := Gui(, "alttab-test I"), ed := iw.AddEdit("w280 h180"), iw.Show("w300 h200"), guis.Push(iw), names[iw.Hwnd] := "I"
+DllCall("imm32\ImmAssociateContext", "ptr", ed.Hwnd, "ptr", 0, "ptr")   ; no IME: a sent q types a q, a Chinese one would take it
+for n in ["D", "C", "B"]
+    Act(h[n])
+Act(iw.Hwnd)                               ; recency: I B C D
+Press("{LAlt down}{Tab}"), Press("{Tab}"), Press("{LAlt up}", 300)
+Check("real keys: Alt held, Tab twice, Alt released goes to 3rd (C)", names.Get(WinExist("A"), "?"), "C")
+SWITCH_KEYS := "Ctrl+Q", KeysRegister()    ; recency C I B D: Q -> I, B, D, Shift+Q -> B
+Press("{LCtrl down}q"), Press("q"), Press("q"), Press("+q"), Press("{LCtrl up}", 300)
+Check("Ctrl+Q bound: Ctrl held, Q three times, Shift+Q, Ctrl released goes to 3rd (B)", names.Get(WinExist("A"), "?"), "B")
+Press("{LCtrl down}q"), wasOpen := cycling, Press(wasOpen ? "{Esc}" : ""), Press("{LCtrl up}", 300)   ; not opened: Ctrl+Esc would open Start
+Check("Ctrl held, Q, Esc, Ctrl released: the pane closes and the same window stays (B)", wasOpen " " cycling " " names.Get(WinExist("A"), "?"), "1 0 B")
+Press("{LCtrl down}q"), at := idx, Press("{Right}"), at .= " " idx, Press("{LCtrl up}", 300)   ; recency B C I D: Right -> I
+Check("Ctrl held, Q, Right: the selection moves a tile", at, "2 3")
+Act(iw.Hwnd), ed.Value := "", Press("q")
+Check("with the pane closed, a plain q reaches the Edit", ed.Value, "q")
+Check("saving Ctrl+Q: no error", SettingsWrite(Map("SWITCH_KEYS", "Ctrl+Q")), "")
+SWITCH_KEYS := "Alt+Tab", SettingsLoad(), KeysRegister()   ; as a restart does; recency I B C D
+Press("{LCtrl down}q"), wasOpen := cycling, Press("{LCtrl up}", 300)
+Check("then a load and registering again: Ctrl+Q still opens the pane and switches (B)", SWITCH_KEYS " " wasOpen " " names.Get(WinExist("A"), "?"), "Ctrl+Q 1 B")
+Check("SettingsReset: no error", SettingsReset(), "")
+SWITCH_KEYS := "Alt+Tab", SettingsLoad(), KeysRegister()   ; recency B I C D
+Press("{LCtrl down}q"), ctrlQ := cycling, Press("{LCtrl up}"), Press("{LAlt down}{Tab}"), altTab := cycling, Press("{LAlt up}", 300)
+Check("then a load: Alt+Tab is back and opens the pane, Ctrl+Q doesn't (I)", SWITCH_KEYS " " ctrlQ " " altTab " " names.Get(WinExist("A"), "?")
+    , "Alt+Tab 0 1 I")
+
+; The stay-open mode (STAY_KEYS, Ctrl+Alt+Tab): the pane stays once every key is up. Enter switches, Esc or a click off it
+; closes it, and other keys are blocked meanwhile.
+Press("{LCtrl down}{LAlt down}{Tab}"), Press("{LAlt up}{LCtrl up}", 300)   ; recency I B C D: on B
+Check("Ctrl+Alt+Tab, then every key released: the pane stays open on the previous window (B)", cycling " " names.Get(wins[idx], "?"), "1 B")
+Press("{Right}"), Press("{Right}"), Press("{Enter}", 300)
+Check("then Right, Right, Enter goes to the 4th window (D)", cycling " " names.Get(WinExist("A"), "?"), "0 D")
+Press("{LCtrl down}{LAlt down}{Tab}"), Press("{LAlt up}{LCtrl up}"), at := idx   ; recency D I B C: on I
+Press("{LAlt down}{Tab}"), Press("{LAlt up}", 300)
+Check("open again, Alt held, Tab, Alt released: the selection moves a tile, and the pane stays open", at " " idx " " cycling, "2 3 1")
+Press("{Esc}", 300)
+Check("then Esc closes it, and the same window stays (D)", cycling " " names.Get(WinExist("A"), "?"), "0 D")
+mi := Buffer(40, 0), NumPut("uint", 40, mi), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
+WinMove(NumGet(mi, 20, "int"), NumGet(mi, 24, "int"), , , h["C"]), Sleep(100)   ; to the work area's top-left: the pane is centred
+WinGetPos(&cx, &cy, , &ch, h["C"])                                               ; and at most PANE_MAX_W wide
+Press("{LCtrl down}{LAlt down}{Tab}"), Press("{LAlt up}{LCtrl up}"), wasOpen := cycling   ; on I
+Press("{Click " cx + 40 " " cy + ch // 2 "}", 300)
+Check("a click on a window outside the pane closes the pane, and that window becomes active (C)", wasOpen " " cycling " " names.Get(WinExist("A"), "?")
+    , "1 0 C")
+Act(iw.Hwnd), ed.Value := ""               ; recency I C D B
+Press("{LCtrl down}{LAlt down}{Tab}"), Press("{LAlt up}{LCtrl up}"), Press("q")
+Check("a letter typed while the pane stays open doesn't reach the Edit, and the pane stays open", cycling " " StrLen(ed.Value), "1 0")
+Press("{Esc}"), Press("q")
+Check("after Esc, a letter reaches the Edit", ed.Value, "q")
+Check("Ctrl and Alt aren't left down after a Ctrl+Alt+Tab open and Esc", GetKeyState("Ctrl") " " GetKeyState("Alt"), "0 0")
+
+; The settings panel's SHORTCUTS row: a click on a field captures the next combination, with every key blocked and the
+; hotkeys suspended meanwhile. Keys go only while a capture runs: otherwise Alt+Tab would switch and Esc close the panel.
+SettingsWrite(Map("SWITCH_KEYS", "Ctrl+Q", "STAY_KEYS", "Ctrl+Alt+Q")), was := KeysLines()
+err := SettingsWrite(Map("SWITCH_KEYS", "Alt+Tab", "STAY_KEYS", "Ctrl+Alt+Tab"))
+Check("SettingsWrite with the default shortcuts leaves no shortcut lines in settings.ini", was " -> " err KeysLines(), "Ctrl+Q Ctrl+Alt+Q -> ")
+FileDelete DATA_DIR "\settings.ini"
+SettingsOpen(), Wait(500)                  ; shown and active
+ControlClick(Field(1)), Wait(100), was := (pnl.cap ? pnl.cap.j : 0) " " A_IsSuspended
+Press(pnl.cap ? "{LCtrl down}q" : ""), Press("{LCtrl up}")
+Check("a click on the switch field captures with the hotkeys suspended; Ctrl+Q then shows, the hotkeys back"
+    , was ", " pnl.keys[1] " " A_IsSuspended, "1 1, Ctrl+Q 0")
+ControlClick(Field(1)), Wait(100)
+Press(pnl.cap ? "{LAlt down}{Tab}" : ""), Press("{LAlt up}", 300)
+Check("a captured Alt+Tab shows as Alt+Tab, and no switcher opens (the panel stays active)"
+    , pnl.keys[1] " " cycling " " (WinExist("A") = pnl.gui.Hwnd), "Alt+Tab 0 1")
+ControlClick(Field(1)), Wait(100)
+Press(pnl.cap ? "{LAlt down}{Esc}" : ""), Press("{LAlt up}", 300)
+Check("Alt+Esc is refused with a reason, and the old value stays", pnl.keys[1] " | " pnl.note
+    , "Alt+Tab | Alt+Escape can't be used: Escape is used inside the switcher.")
+ControlClick(Field(2)), Wait(100)
+Press(pnl.cap ? "{LAlt down}{LShift down}{Tab}" : ""), Press("{LShift up}{LAlt up}", 300)
+Check("Alt+Shift+Tab for staying open is refused as a clash", pnl.keys[2] " | " pnl.note
+    , "Ctrl+Alt+Tab | Alt+Shift+Tab can't be used: going back already uses it.")
+ControlClick(Field(1)), Wait(100), was := IsObject(pnl.cap)
+Press(was ? "{Esc}" : "", 300)
+Check("Esc cancels the capture, and the panel stays open", was " " IsObject(pnl) " " (IsObject(pnl) && IsObject(pnl.cap)) " "
+    . A_IsSuspended " " (IsObject(pnl) ? pnl.keys[1] : ""), "1 1 0 0 Alt+Tab")
+Act(pnl.gui.Hwnd), ControlClick(Field(1)), Wait(100)   ; Alt let go before the blocked Q: unmasked, Windows sees Alt alone, and Down
+                                                        ; then puts the panel in its system menu mode
+got := MenuModeDuring(() => (Press(pnl.cap ? "{LAlt down}{q down}" : ""), Press("{LAlt up}"), Press("{q up}"), Press("{Down}", 300)))
+Check("a captured Alt+Q with Alt let go before Q, then Down: the panel shows Alt+Q and isn't in menu mode", pnl.keys[1] ", " got, "Alt+Q, no menu mode")
+got := ""
+for how in ["a click elsewhere", "the panel losing focus", "the panel closing"] {   ; active first, as a real click makes it
+    Act(pnl.gui.Hwnd), ControlClick(Field(1)), Wait(100), got .= how ": " A_IsSuspended
+    switch A_Index {
+    case 1: ControlClick(pnl.hint.ctl)
+    case 2: Act(iw.Hwnd)
+    case 3: PanelClose()
+    }
+    Wait(100), got .= " -> " A_IsSuspended (IsObject(pnl) && IsObject(pnl.cap) ? " still capturing" : "") "; "
+}
+Check("a capture ended by a click elsewhere, the panel losing focus or closing leaves no hotkey suspended", got
+    , "a click elsewhere: 1 -> 0; the panel losing focus: 1 -> 0; the panel closing: 1 -> 0; ")
+Act(iw.Hwnd), Press("{LAlt down}{Tab}"), wasOpen := cycling, Press("{LAlt up}", 300)
+Check("closed without saving: no shortcut lines, and Alt+Tab opens the switcher again", "[" KeysLines() "] " wasOpen, "[] 1")
 
 for w in guis
     w.Destroy()

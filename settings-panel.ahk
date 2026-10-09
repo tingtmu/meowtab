@@ -1,6 +1,7 @@
 ; Settings… panel for meowtab.ahk and meowtab-classic.ahk (#Included by both; tray menu > Settings…, or
 ; the desktop icon, desktop-icon.ahk, which starts the script with /settings):
-; mood images and their window ranges, how far the image peeks (peek only), the font (list text, or tile titles in peek). Built when
+; mood images and their window ranges, how far the image peeks (peek only), the font (list text, or tile titles in peek), the
+; shortcuts (peek only). Built when
 ; opened and destroyed when closed, so nothing of it exists, runs or listens while closed, and Alt+Tab
 ; never waits on it. Values go to settings.ini (settings-store.ahk); Save reloads the script to apply them.
 
@@ -37,9 +38,10 @@ SettingsOpen(*) {
     PendingClear()                                    ; leftovers of a crash
     peek := SettingsHas("PEEK_MIN")
     pnl := {tok: tok, el: Map(), cards: [], frames: [], labels: [], hover: 0, side: 0, drag: 0, dirty: false
-        , note: PanelIssues()
+        , note: PanelIssues(), held: 0, cap: 0, why: ""
         , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE
-        , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0}
+        , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0
+        , keys: SettingsHas("SWITCH_KEYS") ? [SettingsGet("SWITCH_KEYS"), SettingsGet("STAY_KEYS")] : 0}
     pnl.gui := g := Gui("-MinimizeBox -MaximizeBox -DPIScale")
     g.BackColor := LOOK.bg, g.MarginX := 0, g.MarginY := 0
     g.SetFont("s" 10 * pnlK " c" LOOK.text, LOOK.face)
@@ -59,7 +61,7 @@ SettingsOpen(*) {
     PanelFontList()
 }
 
-; Cards (few / some / many) with their range steppers, the peek scenes and sliders, the font row, the buttons.
+; Cards (few / some / many) with their range steppers, the peek scenes and sliders, the font row, the shortcuts, the buttons.
 ; Tab order follows creation. Returns the client height.
 PanelLayout(w) {
     pad := Dpx(28), gap := Dpx(16), cw := (w - 2 * pad - 2 * gap) // 3, y := Dpx(20)
@@ -88,6 +90,8 @@ PanelLayout(w) {
         , "Text size of the " (pnl.peek ? "window titles" : "list") ", in points (10–24).", PanelStepClick.Bind(4)).i := 4
     y += dh + Dpx(12)
     pnl.sample := PanelAdd("sample", pad, y, w - 2 * pad, Dpx(58), pnl.peek ? PaintTile : PaintSample), y += Dpx(58) + Dpx(26)
+    if pnl.keys
+        y := PanelLayoutKeys(w, pad, gap, y)
     PanelAdd("button", pad - Dpx(12), y, Dpx(150), Dpx(34), PaintButton.Bind("Reset to defaults", 0)
         , "Put the panel's settings back to the built-in ones (asks first).", PanelReset)
     PanelAdd("button", w - pad - Dpx(212), y, Dpx(100), Dpx(34), PaintButton.Bind("Cancel", 1), "Close without saving (Esc).", PanelClose)
@@ -107,9 +111,24 @@ PanelLayoutPeek(w, pad, gap, y) {   ; two scenes (1 window, many windows), a sli
     return y + Dpx(162) + Dpx(20)
 }
 
+; Two fields (a click captures a shortcut: PanelCapture). Under them going back (under the first) and Defaults, or in their place,
+; across both, why a capture was refused (PanelWhy).
+PanelLayoutKeys(w, pad, gap, y) {
+    pnl.labels.Push(["SHORTCUTS", pad, y]), y += Dpx(26), fw := (w - 2 * pad - gap) // 2
+    for j in [1, 2]
+        PanelAdd("keys", pad + (j - 1) * (fw + gap), y, fw, Dpx(30), PaintKeys.Bind(j), j = 1
+            ? "Click, then press the new shortcut: Alt, Ctrl or Win with one key."
+            : "Click, then press the shortcut for a switcher that stays open once you let go.", PanelCapture.Bind(j)).j := j
+    pnl.back := PanelAdd("line", pad, y + Dpx(30), fw, Dpx(52) - Dpx(30), PaintKeysLine.Bind(false))
+    pnl.defaults := PanelAdd("button", w - pad - Dpx(84), y + Dpx(30), Dpx(84), Dpx(22), PaintButton.Bind("Defaults", 0)
+        , "Put the shortcuts back to " SETTINGS_DEFAULTS["SWITCH_KEYS"] " and " SETTINGS_DEFAULTS["STAY_KEYS"] " (Save applies it).", PanelKeysDefaults)
+    pnl.refused := PanelAdd("line", pad, y + Dpx(30), w - 2 * pad, Dpx(52) - Dpx(30), PaintKeysLine.Bind(true)), pnl.refused.ctl.Visible := false
+    return y + Dpx(52) + Dpx(20)
+}
+
 ; An owner-drawn element: a focusable button, or a plain owner-drawn static for the display-only kinds.
 PanelAdd(kind, x, y, w, h, paint, hint := "", click := 0) {
-    if kind ~= "^(hint|scene|sample)$"
+    if kind ~= "^(hint|scene|sample|line)$"
         c := pnl.gui.AddText("x" x " y" y " w" w " h" h " 0xD")            ; SS_OWNERDRAW
     else {
         c := pnl.gui.AddButton("x" x " y" y " w" w " h" h)
@@ -156,7 +175,7 @@ PanelFontList() {
 
 PanelHook(on) {   ; message handlers exist only while the panel is open
     static msgs := Map(0x2B, PanelDrawItem, 0x14, PanelErase, 0x100, PanelKey, 0x200, PanelMouse, 0x201, PanelMouse
-        , 0x202, PanelMouse, 0x2A3, PanelLeave, 0x20, PanelCursor)   ; DRAWITEM ERASEBKGND KEYDOWN mouse MOUSELEAVE SETCURSOR
+        , 0x202, PanelMouse, 0x2A3, PanelLeave, 0x20, PanelCursor, 0x06, PanelActivate)   ; DRAWITEM ERASEBKGND KEYDOWN mouse MOUSELEAVE SETCURSOR ACTIVATE
     for m, f in msgs
         OnMessage(m, f, on ? 1 : 0)
 }
@@ -174,7 +193,7 @@ PanelClose(*) {
     global pnl, pnlK
     if !pnl
         return
-    CutoutCancel(), PanelHook(false), pnl.gui.Destroy(), PendingClear()
+    PanelCaptureEnd(), CutoutCancel(), PanelHook(false), pnl.gui.Destroy(), PendingClear()
     for c in pnl.cards
         for b in [c.thumb, c.big]
             if b
@@ -230,6 +249,10 @@ PanelKey(wParam, lParam, msg, hwnd) {   ; Enter = Save; arrows / + / - / PgUp / 
 PanelMouse(wParam, lParam, msg, hwnd) {   ; slider drags, hover (WM_MOUSEMOVE / LBUTTONDOWN / LBUTTONUP)
     if !pnl
         return
+    if msg = 0x201 && pnl.cap                         ; a click ends a capture (on its own field: that starts it again)
+        PanelCaptureEnd()
+    if msg = 0x202                                    ; and a refusal's line, once released: hiding elements under a pressed button
+        PanelWhy("")                                  ; moves the mouse for it, to where the cursor is, which can undo the click
     x := lParam << 48 >> 48, e := pnl.el.Get(hwnd, 0)  ; signed client x
     if msg = 0x201 && e && e.kind = "slider" {
         pnl.drag := hwnd, DllCall("SetCapture", "ptr", hwnd), e.ctl.Focus()
@@ -251,7 +274,7 @@ PanelHover(hwnd, e, x) {   ; track the element under the mouse (and a stepper's 
     h := e && e.hint != "" ? hwnd : 0
     if h = pnl.hover && side = pnl.side
         return
-    old := pnl.hover, pnl.hover := h, pnl.side := side
+    old := pnl.hover, pnl.hover := h, pnl.side := side, pnl.held := 0, PanelWhy("")
     PanelInvalidate(old), PanelInvalidate(h), PanelInvalidate(pnl.hint.ctl.Hwnd)
     if h
         tme := Buffer(24, 0), NumPut("uint", 24, "uint", 2, "ptr", h, tme), DllCall("TrackMouseEvent", "ptr", tme)   ; TME_LEAVE
@@ -260,6 +283,13 @@ PanelHover(hwnd, e, x) {   ; track the element under the mouse (and a stepper's 
 PanelLeave(wParam, lParam, msg, hwnd) {   ; WM_MOUSELEAVE
     if pnl && hwnd = pnl.hover
         pnl.hover := 0, PanelInvalidate(hwnd), PanelInvalidate(pnl.hint.ctl.Hwnd)
+}
+
+; WM_ACTIVATE: the panel losing focus ends a capture. Destroying the panel sends it too, also while the script exits
+; (Save's Reload, the tray's Exit), when the globals are already unset: hence IsSet.
+PanelActivate(wParam, lParam, msg, hwnd) {
+    if IsSet(pnl) && pnl && hwnd = pnl.gui.Hwnd && !(wParam & 0xFFFF)
+        PanelCaptureEnd()
 }
 
 PanelCursor(wParam, lParam, msg, hwnd) {   ; WM_SETCURSOR: a hand over anything clickable
@@ -276,7 +306,7 @@ PanelRedraw(kinds*) {   ; repaint every element of these kinds
                 PanelInvalidate(hwnd)
 }
 
-PanelNote(text) {   ; a message in the hint line (hover hints still take its place for a moment)
+PanelNote(text) {   ; a message in the hint line (hover hints still take its place for a moment, except pnl.held's)
     pnl.note := text, PanelInvalidate(pnl.hint.ctl.Hwnd)
 }
 
@@ -396,6 +426,59 @@ PanelCleaned(i, made, r) {
     PanelLoadCard(i), PanelNote("“" MOOD_NOTES[i] "”: " r.msg ".")
 }
 
+; Shortcut field j (1 = switching, 2 = staying open) clicked: capture the next combination, as AHK's KeyWaitCombo does. An
+; InputHook blocks every key and ends on the first one that isn't a modifier; the script's hotkeys are suspended meanwhile,
+; so Alt+Tab reaches it and neither switcher opens. PanelCaptured checks the result; PanelCaptureEnd undoes both.
+PanelCapture(j, ctl, *) {
+    PanelCaptureEnd(), PanelWhy("")                   ; one running: this click starts it again
+    if cycling                                        ; a pane open: Suspend would leave its key block on
+        Finish(false)
+    ih := InputHook("L0 I"), ih.VisibleNonText := false   ; I: as stayIH's; level-1 keys (the test's) are still caught
+    ih.KeyOpt("{All}", "E"), ih.KeyOpt("{LCtrl}{RCtrl}{LAlt}{RAlt}{LShift}{RShift}{LWin}{RWin}", "-E")
+    ih.OnEnd := PanelCaptured
+    pnl.cap := {ih: ih, j: j, suspended: A_IsSuspended}, ih.Start(), Suspend(true)
+    PanelNote("Press the new shortcut, or Esc to keep the old one."), pnl.held := ctl.Hwnd, PanelRedraw("keys")
+}
+
+PanelCaptured(ih) {   ; the capture ended on a key: Esc alone cancels, any other combination is checked (KeysParse)
+    if !pnl || !pnl.cap || pnl.cap.ih != ih           ; already ended: a click, the panel's focus or its close
+        return
+    j := pnl.cap.j, held := pnl.held, PanelCaptureEnd(), text := ""
+    if ih.EndMods = "" && ih.EndKey = "Escape"
+        return
+    for i, m in ["Win", "Ctrl", "Alt", "Shift"]
+        text .= InStr(ih.EndMods, SubStr("#^!+", i, 1)) ? m "+" : ""
+    text .= ih.EndKey
+    if ih.EndMods ~= "[#!]"                           ; the Win / Alt release, its key blocked, opens no Start / system menu
+        Send "{Blind}{vkE8}"
+    if why := KeysParse(text, j = 2, pnl.keys[3 - j], &keys, &hk)
+        return (PanelNote(text " can't be used: " why "."), PanelWhy(pnl.note), pnl.held := held)
+    if keys != pnl.keys[j]
+        pnl.keys := j = 1 ? [keys, pnl.keys[2]] : [pnl.keys[1], keys], pnl.dirty := true, PanelRedraw("keys", "line")
+    PanelNote("New shortcut " keys ". Save to use it."), pnl.held := held
+}
+
+PanelWhy(text) {   ; why a capture was refused, in place of the line under the fields (going back, Defaults); "" = that line again
+    if text = pnl.why
+        return
+    pnl.why := text, pnl.refused.ctl.Visible := text != ""
+    pnl.back.ctl.Visible := pnl.defaults.ctl.Visible := text = ""
+}
+
+PanelCaptureEnd() {   ; a running capture stops, however it ends: the hotkeys go back to the user's own suspend state
+    if !pnl || !(c := pnl.cap)
+        return
+    pnl.cap := 0, pnl.held := 0, c.ih.Stop(), Suspend(c.suspended)
+    PanelNote(""), PanelRedraw("keys")
+}
+
+PanelKeysDefaults(*) {   ; the Defaults link: both shortcuts back to the built-in ones, saved like any edit
+    keys := [SETTINGS_DEFAULTS["SWITCH_KEYS"], SETTINGS_DEFAULTS["STAY_KEYS"]]
+    if keys[1] = pnl.keys[1] && keys[2] = pnl.keys[2]
+        return
+    pnl.keys := keys, pnl.dirty := true, PanelRedraw("keys", "line")
+}
+
 PanelSave(*) {   ; write settings.ini (+ pictures) and reload; nothing changed = just close
     if !pnl
         return
@@ -407,6 +490,8 @@ PanelSave(*) {   ; write settings.ini (+ pictures) and reload; nothing changed =
     vals := Map("FONT_NAME", pnl.face, "FONT_SIZE", pnl.size, "SOME_FROM", pnl.some, "MANY_FROM", pnl.many, "IMG_PREFIX", IMG_PREFIX)
     if pnl.peek
         vals["PEEK_MIN"] := pnl.peek[1] / 100, vals["PEEK_MAX"] := pnl.peek[2] / 100
+    if pnl.keys
+        vals["SWITCH_KEYS"] := pnl.keys[1], vals["STAY_KEYS"] := pnl.keys[2]
     for c in pnl.cards
         if c.pending {
             if err := ImagesCommit(IMG_PREFIX)

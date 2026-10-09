@@ -21,16 +21,7 @@ Code map: `meowtab.ahk` holds settings, hotkeys and switching; `alttab-native.ah
 
 ## 2. Custom shortcut bindings
 
-**Today:** opening and cycling the switcher are tied to Alt+Tab and Alt+Shift+Tab; releasing Alt switches to the selected window. There is no way to choose another combination from settings, which makes conflicts with a window manager or another app harder to work around.
-
-**Plan:**
-
-- Add a **SHORTCUTS** section to the settings panel with key capture for forward and backward cycling, showing the current combinations in readable form. Keep Alt+Tab and Alt+Shift+Tab as the defaults, with one reset action.
-- **Keep the hold-and-release behaviour.** Both bindings share a hold modifier: hold it to keep the pane open, press the chosen keys to cycle, release it to switch. Arrows and Esc keep working inside the pane. The later Ctrl+Alt+Tab mode can have its own binding once it exists.
-- **Validate before saving.** Reject duplicates and unsupported combinations, and check that the new bindings can be registered. If registration fails, keep the working bindings and explain the problem. Invalid values in `settings.ini` fall back to the defaults with a notification, as other settings do.
-- Save the bindings in `settings.ini` and apply them through the settings panel's existing reload flow. Keep ordinary typing available while the pane is closed, and suspend switching shortcuts while the user captures a new combination.
-
-**Done when:** the defaults behave as today; a custom forward/backward pair survives a restart and reset restores the defaults; invalid bindings leave a working switcher; and the integration test covers cycling, release-to-switch and cancellation with custom bindings within item 4's performance budgets.
+**Done**: the switcher's shortcut (Alt+Tab by default; with Shift it goes back) and that of the new switcher that stays open (Ctrl+Alt+Tab, as in Windows) can be changed in the settings panel's **SHORTCUTS** section, which captures the keys pressed. Both are saved in `settings.ini` in readable form, and a value that can't work falls back to its default with the usual notification.
 
 ## 3. The "Velvet" look, and whether to offer a choice
 
@@ -129,7 +120,6 @@ Production notes:
 
 ## Also on the list
 
-- **Ctrl+Alt+Tab:** a switcher that stays open without holding Alt (arrows and Enter, Esc to close), like Windows.
 - **Hover:** show the hover state immediately when the pane opens under the cursor, not only after the mouse moves.
 - **Minimized windows:** verify their thumbnails live; Windows keeps a last image, otherwise MeowTab shows the big app icon.
 - **An empty monitor:** Alt+Tab on a monitor with no windows currently does nothing. Consider falling back to all monitors.
