@@ -1,11 +1,17 @@
 #Requires AutoHotkey v2.0
 ; Integration test for meowtab.ahk. Opens 5 temporary windows on the
 ; current desktop (a tiling WM may tile them briefly), then checks ordering.
-; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tests\meowtab.test.ahk | more
+; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tests\meowtab.test.ahk [velvet | windows11] | more
+; (the pane's look to test in, set in the test's settings.ini as a user's would be; none: the app's default look)
+if A_Args.Length && !(A_Args[1] = "velvet" || A_Args[1] = "windows11")
+    FileAppend("usage: meowtab.test.ahk [velvet | windows11]`n", "*"), ExitApp(1)
 DATA_DIR := A_Temp "\meowtab-test-" A_TickCount   ; a new, empty data folder: the test never reads or changes the user's own
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))   ; gone again however the run ends
+if A_Args.Length                           ; before the include: the app's startup reads it (and picks the title font by it)
+    DirCreate(DATA_DIR), IniWrite(A_Args[1], DATA_DIR "\settings.ini", "settings", "PANE_LOOK")
 #Include %A_LineFile%\..\..\meowtab.ahk
 A_IconHidden := true   ; no tray icon, no TrayTip: the settings warnings the bad-value checks provoke stay out of the notification centre
+lookDefault := SETTINGS_DEFAULTS["PANE_LOOK"]   ; the built-in look, as the startup load found it (this run's: PANE_LOOK)
 
 global fails := 0, names := Map()
 
@@ -135,6 +141,49 @@ Columns() {   ; every tile as wide as the first, right under the one GRID_COLS b
     return "in columns"
 }
 
+; The pane's own pixel x, y (Render's surface, premultiplied) composited over the palette's plain colour, pal.pane: [r, g, b].
+PanePx(x, y) {
+    bm := Buffer(32, 0), DllCall("GetObject", "ptr", surf.hbm, "int", 32, "ptr", bm)   ; BITMAP: bmBits
+    c := NumGet(NumGet(bm, A_PtrSize = 8 ? 24 : 20, "ptr"), 4 * (y * surf.w + x), "uint"), k := 1 - (c >> 24) / 255, p := Integer("0x" pal.pane)
+    return [(c >> 16 & 0xFF) + (p >> 16) * k, (c >> 8 & 0xFF) + (p >> 8 & 0xFF) * k, (c & 0xFF) + (p & 0xFF) * k]
+}
+Luma(c) => 0.299 * c[1] + 0.587 * c[2] + 0.114 * c[3]   ; brightness, 0-255 (Rec. 601)
+
+; How much tile i's header changes when hovered (design 6): its mean brightness left of the icon, hovered less plain.
+HoverStep(i) {
+    global hover, hoverX
+    t := tiles[i], y0 := TileY(t) + Round(grid.hdr * 0.3), y1 := TileY(t) + Round(grid.hdr * 0.85), x1 := t.x + Round(ICON_X * grid.S) - 3
+    m := []
+    for hv in [0, i] {
+        hover := hv, hoverX := false, Render(surf), sum := n := 0
+        Loop y1 - y0 {
+            y := y0 + A_Index - 1
+            Loop x1 - t.x - 3
+                sum += Luma(PanePx(t.x + 2 + A_Index, y)), n += 1
+        }
+        m.Push(sum / n)
+    }
+    return m[2] - m[1]
+}
+
+; Tile i's close button with the mouse on the tile, then on the button, at a point above its middle (inside Velvet's disc, clear
+; of the X) and one left of that (outside the disc, inside the Windows 11 look's square): "RRGGBB" where red, else "grey";
+; ", disc" when the first stands out from the second.
+CloseTones(i) {
+    global hover, hoverX
+    t := tiles[i], x := t.x + t.w - CloseW(t) // 2, y := TileY(t) + grid.hdr // 2 - Round(VELVET_CLOSE * grid.S * 0.3)
+    s := ""
+    for onX in [false, true] {
+        hover := i, hoverX := onX, Render(surf), c := PanePx(x, y), out := PanePx(x - Round(VELVET_CLOSE * grid.S * 0.75), y)
+        s .= (onX ? "; on it " : "on the tile ") Tone(c) " " Tone(out) (Abs(Luma(c) - Luma(out)) >= 6 ? ", disc" : "")
+    }
+    return s
+}
+Tone(c) => c[1] - (c[2] + c[3]) / 2 > 100 ? Format("{:02X}{:02X}{:02X}", Round(c[1]), Round(c[2]), Round(c[3])) : "grey"
+
+; DWM's rectangle for tile t's thumbnail, as ThumbPlace last set it (t.props): [left, top, right, bottom].
+ThumbRect(t) => [NumGet(t.props, 4, "int"), NumGet(t.props, 8, "int"), NumGet(t.props, 12, "int"), NumGet(t.props, 16, "int")]
+
 ; A shortcut through KeysParse: "readable hotkey-name", or why it's refused.
 Parsed(text, stay := false, other := "") => (why := KeysParse(text, stay, other, &keys, &hk)) = "" ? keys " " hk : why
 
@@ -147,8 +196,37 @@ Field(j) {   ; the open settings panel's shortcut field j (1 = switching, 2 = st
             return e.ctl
 }
 
+SaveAt() {   ; where the open settings panel's Save is on the screen: "x,y" of the bar's rightmost button
+    for hwnd, e in pnl.el
+        if e.kind = "button" && e.ctl.Gui = pnl.gui && (!IsSet(save) || e.x > save.x)
+            save := e
+    WinGetPos(&x, &y, , , save.ctl)
+    return x "," y
+}
+
+Whole(ctl) => (ctl.GetPos(, &y, , &h), y >= pnl.off && y + h <= pnl.off + pnl.viewH)   ; a control of the panel's page shows whole
+
 ; settings.ini's shortcut lines ("" = none).
 KeysLines() => Trim(IniRead(DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS", "") " " IniRead(DATA_DIR "\settings.ini", "settings", "STAY_KEYS", ""))
+
+; The open panel's LOOK cards whose painter, run as WM_DRAWITEM runs it, draws the pick's check: its accent disc in the well's
+; corner (PaintLook), read above the check itself.
+Marked() {
+    s := "", sdc := DllCall("GetDC", "ptr", 0, "ptr"), dc := DllCall("CreateCompatibleDC", "ptr", sdc, "ptr")
+    for hwnd, e in pnl.el
+        if e.kind = "look" {
+            bm := DllCall("CreateCompatibleBitmap", "ptr", sdc, "int", e.w, "int", e.h, "ptr"), ob := DllCall("SelectObject", "ptr", dc, "ptr", bm, "ptr")
+            paint := e.paint, paint(dc, e.w, e.h, 0)
+            s .= DllCall("GetPixel", "ptr", dc, "int", e.w - Dpx(13), "int", Dpx(9), "uint") = Bgr(LOOK.accent) ? " " e.lk : ""
+            DllCall("SelectObject", "ptr", dc, "ptr", ob), DllCall("DeleteObject", "ptr", bm)
+        }
+    DllCall("DeleteDC", "ptr", dc), DllCall("ReleaseDC", "ptr", 0, "ptr", sdc)
+    return Trim(s)
+}
+
+WatchDraw(wParam, lParam, *) {   ; WM_DRAWITEM, ahead of the panel's own handler: the elements drawn (drawnEls)
+    drawnEls[NumGet(lParam, 24, "ptr")] := true
+}
 
 ; What fn's keys do to the panel: "menu mode" if they put its thread there (GetGUIThreadInfo: GUI_INMENUMODE 0x4, GUI_SYSTEMMENUMODE 0x8),
 ; else "no menu mode". That mode holds this thread up, timers too, so a helper process watches and ends it with an Alt tap.
@@ -365,8 +443,31 @@ MouseMove(0, 0, 0)                         ; parked again, as the scroll bar che
 wins := Repeat(4), idx := 1, cycling := true, ShowPane(true), got := hover, Finish(false), Wait(0)
 Check("an open with the cursor away from the pane hovers nothing", got, 0)
 
+; The look, read from the pane's own pixels: this run's (PANE_LOOK; the gate runs the test in each), in light and in dark mode,
+; switched as readme-shots does. ShowPane leaves this thread Critical: no timer redraws until the Wait.
+was := dark, steps := [], tones := ""
+for d in [false, true] {
+    dark := d, wins := Repeat(4), idx := 1, cycling := true, ShowPane(true)
+    steps.Push(HoverStep(2)), tones .= (d ? " | dark: " : "light: ") CloseTones(2), Finish(false), Wait(0)
+}
+dark := was
+Check("the hovered header is at least 12 levels brighter or darker than a plain one, in light and in dark mode"
+    , Abs(steps[1]) >= 12 && Abs(steps[2]) >= 12 ? "at least 12" : Format("light {:.1f}, dark {:.1f}", steps*), "at least 12")
+Check(PANE_LOOK = "velvet" ? "Velvet's close button: a muted disc on the hovered tile, red only with the mouse on it"
+    : "the close button: red on the hovered tile, darker red with the mouse on it, as before", tones
+    , Format("light: {1} | dark: {1}", PANE_LOOK = "velvet" ? "on the tile grey grey, disc; on it E81123 grey, disc" : "on the tile E81123 E81123; on it C42B1C C42B1C"))
+Open(4, 1), rest := ThumbRect(tiles[2]), Step(1), lifted := ThumbRect(tiles[2]), Step(1), after := ThumbRect(tiles[2]), Finish(false), Wait(0)
+grow := (lifted[3] - lifted[1]) / (rest[3] - rest[1])   ; Tab to tile 2, then on to tile 3: its thumbnail's width, selected / not
+Check("Tab lifts the selected thumbnail about 2 % in Velvet (not in Windows 11), and the next Tab puts it back"
+    , (Abs(grow - 1.02) <= 0.015 ? "about 2 % larger" : grow = 1 ? "the same size" : Round(grow, 3) " times as wide")
+    . (Format("{} {} {} {}", after*) = Format("{} {} {} {}", rest*) ? ", then back" : ", then not back")
+    , (PANE_LOOK = "velvet" ? "about 2 % larger" : "the same size") ", then back")
+
 ; User data goes to DATA_DIR (the user's AppData\MeowTab in real use), never next to the script.
-Check("data folder is new and empty", FileExist(DATA_DIR) "", "")
+got := ""
+Loop Files DATA_DIR "\*", "FD"
+    got .= A_LoopFileName " "
+Check("data folder is new and empty, but for the settings.ini of the look to test in", Trim(got), A_Args.Length ? "settings.ini" : "")
 before := AppFiles()
 Check("saving settings: no error", SettingsWrite(Map("FONT_SIZE", 14)), "")
 Check("saving settings creates <data>\settings.ini", IniRead(DATA_DIR "\settings.ini", "settings", "FONT_SIZE", ""), 14)
@@ -388,6 +489,12 @@ Check("else falls back to the app folder", MoodImage("chill", "some"), A_ScriptD
 FileCopy src, DATA_DIR "\images\chill_some.png"
 Check("a user set of the same name wins", MoodImage("chill", "some"), DATA_DIR "\images\chill_some.png")
 Check("the app's settings.ini and images\ are unchanged", AppFiles(), before)
+IniWrite "glass", DATA_DIR "\settings.ini", "settings", "PANE_LOOK"
+runLook := PANE_LOOK, PANE_LOOK := lookDefault, SettingsLoad()   ; a reload from the built-in look, as a restart has it
+Check("PANE_LOOK=glass in settings.ini: a reload gives the default look and reports the line"
+    , PANE_LOOK ", " SETTINGS_ISSUES.Length ": " (SETTINGS_ISSUES.Length ? SETTINGS_ISSUES[1] : "")
+    , lookDefault ", 1: PANE_LOOK = glass: expected velvet or windows11, using " lookDefault)
+PANE_LOOK := runLook, A_Args.Length ? IniWrite(runLook, DATA_DIR "\settings.ini", "settings", "PANE_LOOK") : IniDelete(DATA_DIR "\settings.ini", "settings", "PANE_LOOK")   ; this run's look again
 
 ; Shortcuts: SWITCH_KEYS / STAY_KEYS as settings.ini has them (KeysParse), registered by KeysRegister. Custom ones are
 ; checked holding Ctrl: if a check goes wrong, a held Win or Alt could open Start or a menu bar.
@@ -494,6 +601,30 @@ Check("a gaps: block with only single_window_outer_gap, or no gaps: block, is 0"
     , GlazeGaps("gaps:`n  inner_gap: 3`n  single_window_outer_gap:`n    top: 46`n    bottom: 6`n", 144) " " GlazeGaps("general:`n  focus_follows_cursor: false`n", 144), "0 0")
 Check("a % value or empty text can't tell", "[" GlazeGaps(StrReplace(glazeCfg, "top: '46px'", "top: '5%'"), 144) "] [" GlazeGaps("", 144) "]", "[] []")
 
+; The settings panel is never scaled: its window is its content plus the bottom bar, or the room, whichever is less, and the
+; page scrolls under the bar. PANEL_ROOM sets the room for these checks: in 600 px (at 96 dpi) it overflows on any screen,
+; in 3000 px it fits. The wheel notches are sent to the page, as a wheel over it sends them.
+PANEL_ROOM := Dpx(600)
+SettingsOpen(), Wait(500), WinGetPos(, , , &wh, pnl.gui), save := SaveAt()
+Check("in a 600 px room the panel's window is as tall as the room, and its page overflows", wh " " (pnl.end > 0), PANEL_ROOM " 1")
+pnl.hint.ctl.GetPos(, &hy, , &hh), pnl.gui.GetClientPos(, , , &ch)
+Check("the hint line sits in the bottom bar, under the page's view", (pnl.hint.ctl.Gui = pnl.gui) " " (hy >= pnl.viewH && hy + hh <= ch), "1 1")
+DllCall("SendMessageW", "ptr", pnl.page.Hwnd, "uint", 0x20A, "ptr", 0xFF880000, "ptr", 0), Wait(100)   ; a notch down
+WinGetPos(, &py, , , pnl.page), WinGetPos(, &vy, , , pnl.view)
+Check("a wheel notch scrolls the page up in its view, and Save stays put", pnl.off " " (vy - py) " " SaveAt()
+    , Min(Dpx(60), pnl.end) " " Min(Dpx(60), pnl.end) " " save)
+for hwnd, e in pnl.el
+    if e.kind = "step" && e.i = 4                 ; the text size, just before the shortcut fields
+        size := e.ctl
+Act(pnl.gui.Hwnd), size.Focus(), Wait(100), was := Whole(Field(1))
+Press("{Tab}")
+Check("Tab from the text size to the hidden switch field scrolls it into view, whole", was " " (DllCall("GetFocus", "ptr") = Field(1).Hwnd) " " Whole(Field(1)), "0 1 1")
+PanelClose(), PANEL_ROOM := Dpx(3000)
+SettingsOpen(), Wait(500), save := SaveAt()
+DllCall("SendMessageW", "ptr", pnl.page.Hwnd, "uint", 0x20A, "ptr", 0xFF880000, "ptr", 0), Wait(100)
+Check("in a 3000 px room the page fits: no scroll bar, and a wheel notch scrolls nothing", pnl.end " " pnl.off " " (SaveAt() = save), "0 0 1")
+PanelClose(), PANEL_ROOM := 0                     ; the desktop's room again
+
 ; The settings panel's SHORTCUTS row: a click on a field captures the next combination, with every key blocked and the
 ; hotkeys suspended meanwhile. Keys go only while a capture runs: otherwise Alt+Tab would switch and Esc close the panel.
 SettingsWrite(Map("SWITCH_KEYS", "Ctrl+Q", "STAY_KEYS", "Ctrl+Alt+Q")), was := KeysLines()
@@ -501,6 +632,11 @@ err := SettingsWrite(Map("SWITCH_KEYS", "Alt+Tab", "STAY_KEYS", "Ctrl+Alt+Tab"))
 Check("SettingsWrite with the default shortcuts leaves no shortcut lines in settings.ini", was " -> " err KeysLines(), "Ctrl+Q Ctrl+Alt+Q -> ")
 FileDelete DATA_DIR "\settings.ini"
 SettingsOpen(), Wait(500)                  ; shown and active
+WinGetPos(, &wy, , &wh, pnl.gui), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
+wt := NumGet(mi, 24, "int"), wb := NumGet(mi, 32, "int"), lf := Buffer(92), DllCall("GetObjectW", "ptr", pnl.f["body"], "int", 92, "ptr", lf)
+Check("in the desktop's room the panel's window is inside the work area less Dpx(16), and its text is full size (10 pt)"
+    , (wy >= wt && wy + wh <= wb && wh <= wb - wt - Dpx(16)) " " NumGet(lf, 0, "int"), "1 -" Round(10 * A_ScreenDPI / 72))
+Field(1).Focus(), Wait(100)                       ; in view first, as a user sees a field before clicking it
 ControlClick(Field(1)), Wait(100), was := (pnl.cap ? pnl.cap.j : 0) " " A_IsSuspended
 Press(pnl.cap ? "{LCtrl down}q" : ""), Press("{LCtrl up}")
 Check("a click on the switch field captures with the hotkeys suspended; Ctrl+Q then shows, the hotkeys back"
@@ -539,6 +675,49 @@ Check("a capture ended by a click elsewhere, the panel losing focus or closing l
     , "a click elsewhere: 1 -> 0; the panel losing focus: 1 -> 0; the panel closing: 1 -> 0; ")
 Act(iw.Hwnd), Press("{LAlt down}{Tab}"), wasOpen := cycling, Press("{LAlt up}", 300)
 Check("closed without saving: no shortcut lines, and Alt+Tab opens the switcher again", "[" KeysLines() "] " wasOpen, "[] 1")
+
+; The settings panel's LOOK cards, opened in this run's look with the built-in one as a restart has it (the reloads above took
+; this run's for it). The whole page fits its room, so every element paints; the WM_DRAWITEMs after a pick are watched.
+PANE_LOOK := lookDefault, SettingsLoad(), PANE_LOOK := runLook, PANEL_ROOM := Dpx(3000)
+SettingsOpen(), Wait(500), other := runLook = "velvet" ? "windows11" : "velvet", cards := Map(), drawnEls := Map()
+for hwnd, e in pnl.el
+    if e.kind = "look"
+        cards[e.lk] := e
+was := pnl.look " " Marked(), OnMessage(0x2B, WatchDraw, -1)
+ControlClick(cards[other].ctl), Wait(300), OnMessage(0x2B, WatchDraw, 0)
+redrawn := 0
+for hwnd, e in pnl.el
+    redrawn += e.kind ~= "^(look|scene|sample)$" && drawnEls.Has(hwnd)
+Check("a click on the " other " card picks it: it's marked instead of the " runLook " card, and both cards, the peek scenes and the title sample are drawn again"
+    , was " -> " pnl.look " " Marked() ", " redrawn " drawn again", runLook " " runLook " -> " other " " other ", 5 drawn again")
+got := "", want := ""
+for lk in [other, runLook] {                      ; the click picked the other look; Space on this run's card picks it back
+    if lk = runLook
+        Act(pnl.gui.Hwnd), cards[lk].ctl.Focus(), Press("{Space}")
+    SettingsWrite(PanelVals()), got .= lk ": " PanelVals().Get("PANE_LOOK", "none") " [" IniRead(DATA_DIR "\settings.ini", "settings", "PANE_LOOK", "") "] "
+    want .= lk ": " lk " [" (lk = lookDefault ? "" : lk) "] "
+}
+Check("then Space on the " runLook " card picks it back. Save's values carry each pick, and settings.ini holds it as PANE_LOOK"
+    . ", but no line for the built-in look (" lookDefault ")", got, want)
+PanelClose(), PANEL_ROOM := 0
+; Classic's own panel, opened by Classic in a process of its own on a data folder of its own: no LOOK section, as Classic has
+; no PANE_LOOK (the panel shows the section where the script defines it).
+classic := DATA_DIR "\classic-panel.ahk", answer := DATA_DIR "\classic-panel.txt"
+FileOpen(classic, "w").Write("#NoTrayIcon`nOnError((e, *) => (FileAppend('error: ' e.Message, A_Args[1]), ExitApp(3)))`n"
+    . "DATA_DIR := A_ScriptDir '\classic'`n#Include " AppDir() "meowtab-classic.ahk`n" "
+(
+SettingsOpen(), n := 0
+for hwnd, e in pnl.el
+    n += e.kind = 'look'
+for l in pnl.labels
+    n += l[1] = 'LOOK'
+FileAppend(n ' LOOK elements, ' pnl.cards.Length ' picture cards', A_Args[1]), ExitApp()
+)")
+Run('"' A_AhkPath '" /ErrorStdOut "' classic '" "' answer '"', , , &pid)
+if stuck := ProcessWaitClose(pid, 10)             ; still running after 10 s: an error dialog on its way out holds it
+    ProcessClose(pid)
+Check("Classic's own panel has no LOOK section, and Classic exits with it open without an error"
+    , (FileExist(answer) ? FileRead(answer) : "no answer") (stuck ? ", then stuck" : ""), "0 LOOK elements, 3 picture cards")
 
 for w in guis
     w.Destroy()

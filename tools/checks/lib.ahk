@@ -1,5 +1,5 @@
-; Usage: none, it is #Included by shots.ahk, timing.ahk and stay.ahk (run them with tools\checks\run.ps1, from the repo root).
-; tools\checks\lib.ahk: shared by shots.ahk and timing.ahk (the many-windows-grid checks 4.1 captures, 4.2 timing), and stay.ahk.
+; Usage: none, it is #Included by shots.ahk, timing.ahk, stay.ahk and opens.ahk (run them with tools\checks\run.ps1, from the repo root).
+; tools\checks\lib.ahk: shared by shots.ahk and timing.ahk (the many-windows-grid checks 4.1 captures, 4.2 timing), stay.ahk and opens.ahk.
 ; Adapted from tools\readme-shots.ahk: demo windows, the stand-in wallpaper, the privacy guard (ForeignAbove), Capture;
 ; plus opening the pane on the demo windows and real mouse input. #Included by the wrapper that run.ps1 generates, after the
 ; root's meowtab.ahk, so the switcher's globals and functions are in scope. Nothing here writes into the source root.
@@ -8,7 +8,8 @@
 global demoWins := [], wall := 0, MON_RECT := [0, 0, 0, 0], skipped := 0, heldDown := false
 OnExit((*) => (heldDown && Click("Up"), 0))                    ; never leave the left mouse button down
 OnError((e, *) => (Say("ERROR: " e.Message " (" e.What ") at " e.File ":" e.Line), ExitApp(3)))
-SetTimer(() => ExitApp(2), -120000)                            ; a stuck run must not leave a stand-in wallpaper over the screen
+SetTimer(Overrun, -120000)                                     ; a stuck run must not leave a stand-in wallpaper over the screen
+Overrun() => ExitApp(2)                                        ; (named: a longer run, opens.ahk's, sets it again)
 Say(s) => FileAppend(s "`n", "*")
 
 ; --- the only windows that may ever show: neutral titles, fake contents (as readme-shots) ---

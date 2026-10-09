@@ -49,7 +49,8 @@ DwmSet(h, attr, v) => DllCall("dwmapi\DwmSetWindowAttribute", "ptr", h, "uint", 
 PaneShow(x, y, fresh) {
     global surf, pal, accentRgb, hover, hoverX, mouseAt
     if fresh {                                     ; and the scroll bar shows on opening, when rows overflow
-        pal := dark ? DARK_PAL : LIGHT_PAL, accentRgb := AccentRing(), DwmSet(g.Hwnd, 20, dark)   ; IMMERSIVE_DARK_MODE: dark acrylic
+        pal := PANE_LOOK = "velvet" ? (dark ? VELVET_DARK : VELVET_LIGHT) : dark ? DARK_PAL : LIGHT_PAL   ; the look's, in Windows' mode
+        accentRgb := AccentRing(), DwmSet(g.Hwnd, 20, dark)   ; IMMERSIVE_DARK_MODE: dark acrylic
         BarReset(grid.end > 0)
     }
     IconsLoad()
@@ -74,6 +75,7 @@ PaneFree() {   ; on hide: everything one open made; a scroll stops where it is, 
             if bm
                 DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
     old := surf, surf := 0, icons := Map(), SurfaceFree(old)
+    VelvetBaseFree()                               ; Velvet's base layer goes with the surface
     hover := 0, hoverX := false, mouseAt := pressAt := clickAt := 0, wheel := 0, tracking := false
 }
 
@@ -113,6 +115,8 @@ WarmUp() {
     Paint(s.gr, CornerPath(0, 0, 240, 60, 12, 3), Argb("FFFFFF", 200))
     Title(s.gr, "Warm-up 暖身 ウォーム", 36, 0, 200, 60, "000000")
     SurfaceFree(s)
+    if PANE_LOOK = "velvet"                        ; and Velvet's tint and grain for this mode, made once
+        VelvetGrain(dark ? VELVET_DARK : VELVET_LIGHT)
 }
 
 ; ----- Layout -----
@@ -272,9 +276,12 @@ Nearest(r, cx) {   ; the tile in row r whose centre is closest to cx
 }
 
 SelectTile(i) {   ; the selection to tile i, scrolled into view if it isn't whole there (judged at the goal)
-    global idx := i
+    global idx
+    was := idx, idx := i
     if (to := Reveal(i)) != grid.goal
         return ScrollTo(to)                        ; its first frame draws the selection
+    if PANE_LOOK = "velvet"                        ; no scroll places the thumbnails: Velvet's lift moves to the new one
+        VelvetRelift(was)
     Render(surf), Present()
 }
 
@@ -354,6 +361,8 @@ DrawBar(gr) {   ; the thumb: a pill in the palette's `bar`, at the bar's opacity
 ; ----- Drawing: one full redraw per change (~2 ms for 20 tiles, spike Q5); DWM puts the thumbnails over it -----
 
 Render(s) {   ; the pane's pixels for the current state: its edge, the tiles in view (cut just inside it), hover, selection, scroll bar
+    if PANE_LOOK = "velvet"
+        return VelvetRender(s)
     DllCall("gdiplus\GdipGraphicsClear", "ptr", s.gr, "uint", BACKDROP ? 0 : Argb(pal.pane, 255))   ; clear glass / opaque pane
     DrawEdge(s.gr, s.w, s.h)
     DllCall("gdiplus\GdipSetClipRectI", "ptr", s.gr, "int", 0, "int", Inset(), "int", s.w, "int", s.h - 2 * Inset(), "int", 0)   ; CombineModeReplace
@@ -451,12 +460,13 @@ CornerPath(x, y, w, h, r, corners) {
 }
 
 ; The title font: FONT_NAME at FONT_SIZE pt, made in pixels (the surface's DPI can't skew it); Segoe UI when GDI+
-; can't use it (a CFF-outline OpenType family, or one with no Regular style). CJK falls back by itself.
+; can't use it (a CFF-outline OpenType family, or one with no Regular style). CJK falls back by itself. Velvet first
+; tries its medium weight, the family Windows lists as "<FONT_NAME> Medium" (Noto Sans TC has one, Segoe UI none).
 ; titleLineH: its line height in px.
 TitleInit() {
     global titleFont, titleFmt, titleLineH
     px := FONT_SIZE * A_ScreenDPI / 72
-    for face in [FONT_NAME, "Segoe UI"] {
+    for face in (PANE_LOOK = "velvet" ? [FONT_NAME " Medium", FONT_NAME, "Segoe UI"] : [FONT_NAME, "Segoe UI"]) {
         if DllCall("gdiplus\GdipCreateFontFamilyFromName", "wstr", face, "ptr", 0, "ptr*", &ff := 0)
             continue
         DllCall("gdiplus\GdipGetEmHeight", "ptr", ff, "int", 0, "ushort*", &em := 0)
@@ -519,18 +529,21 @@ ThumbsShow() {
 ; as Render cuts our pixels, its source rows by the same share: floating point, rounded once. true = it shows.
 ThumbPlace(t, y, e) {
     sx := t.whole ? 0 : t.src[1], sy := t.whole ? 0 : t.src[2]
-    k := Min(t.w / Max(t.sw, 1), grid.slot / Max(t.sh, 1)), w := t.sw * k, h := t.sh * k
-    x := t.x + (t.w - w) / 2, y += (grid.slot - h) / 2, y1 := Max(y, e), y2 := Min(y + h, grid.h - e)
+    bx := t.x, bw := t.w, bh := grid.slot          ; the box it's fitted in: its slot
+    if PANE_LOOK = "velvet"
+        VelvetBox(t, &bx, &y, &bw, &bh)            ; inside the mat; lifted when selected
+    k := Min(bw / Max(t.sw, 1), bh / Max(t.sh, 1)), w := t.sw * k, h := t.sh * k
+    x := bx + (bw - w) / 2, y += (bh - h) / 2, y1 := Max(y, e), y2 := Min(y + h, grid.h - e)
     if y2 <= y1 {                                  ; only its letterbox is in view
         if t.on
             ThumbHide(t)
         return false
     }
-    p := Buffer(48, 0)                             ; DWM_THUMBNAIL_PROPERTIES
+    p := t.props := Buffer(48, 0)                  ; DWM_THUMBNAIL_PROPERTIES, kept with the tile (DWM can't be asked: the test reads it)
     NumPut("uint", 0xF, p, 0)                      ; RECTDESTINATION | RECTSOURCE | OPACITY | VISIBLE
     NumPut("int", Round(x), "int", Round(y1), "int", Round(x + w), "int", Round(y2)
         , "int", sx, "int", Round(sy + (y1 - y) / k), "int", sx + t.sw, "int", Round(sy + (y2 - y) / k), p, 4)
-    NumPut("uchar", 255, p, 36), NumPut("int", 1, p, 40)   ; opaque, visible; not client-only
+    NumPut("uchar", PANE_LOOK = "velvet" ? VelvetDim(y1, y2) : 255, p, 36), NumPut("int", 1, p, 40)   ; opaque (Velvet: as faded), visible; not client-only
     DllCall("dwmapi\DwmUpdateThumbnailProperties", "ptr", t.thumb, "ptr", p)
     return true
 }

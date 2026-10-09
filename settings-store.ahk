@@ -3,12 +3,13 @@
 ; defined here are set late in the auto-execute section, so SettingsLoad must not rely on them).
 
 ; Keys settings.ini may set: [name, kind, low, high]. A key applies only if the running script defines it
-; (PEEK_* and *_KEYS exist in meowtab.ahk only, IMG_ROWS in meowtab-classic.ahk only). The panel edits the first seven and *_KEYS.
+; (PEEK_*, *_KEYS and PANE_LOOK exist in meowtab.ahk only, IMG_ROWS in meowtab-classic.ahk only). The panel edits the first seven,
+; *_KEYS and PANE_LOOK.
 SettingsSchema() => [["FONT_NAME", "font"], ["FONT_SIZE", "int", 10, 24], ["IMG_PREFIX", "prefix"]
     , ["SOME_FROM", "int", 2, 29], ["MANY_FROM", "int", 3, 30], ["PEEK_MIN", "num", 0.3, 1], ["PEEK_MAX", "num", 0.3, 1]
     , ["LIST_WIDTH", "int", 300, 4000], ["MAX_ROWS", "int", 3, 50], ["PREVIEW_W", "int", 0, 4000]
     , ["IMG_SIZE", "int", 40, 600], ["IMG_ROWS", "int", 0, 50], ["WM_PROCESS", "process"]
-    , ["SWITCH_KEYS", "keys"], ["STAY_KEYS", "keys"]]
+    , ["SWITCH_KEYS", "keys"], ["STAY_KEYS", "keys"], ["PANE_LOOK", "look"]]
 
 ; Where the user's settings and pictures live, so replacing the app folder keeps them. A script may set DATA_DIR
 ; before including meowtab.ahk (the test and readme-shots do); read here, not at top level, so SettingsLoad sees it.
@@ -77,6 +78,8 @@ SettingsCheck(s, raw, def, &why) {
         return (why := "expected a process name like glazewm.exe", def)
     case "keys":                                             ; a clash between the two is checked once both are read
         return (why := KeysParse(raw, s[1] = "STAY_KEYS", "", &keys, &hk)) ? (why .= ", using " def, def) : keys
+    case "look":
+        return raw = "velvet" || raw = "windows11" ? StrLower(raw) : (why := "expected velvet or windows11, using " def, def)
     }
 }
 
@@ -139,7 +142,7 @@ SettingsReset() {
         return ""
     try {
         for i, s in SettingsSchema()
-            if i <= 7 || s[2] = "keys" && SettingsHas(s[1])     ; the shortcuts only where they apply: Classic keeps them
+            if i <= 7 || s[2] ~= "^(keys|look)$" && SettingsHas(s[1])   ; the shortcuts and the look only where they apply: Classic keeps them
                 IniDelete file, "settings", s[1]
         rest := "", sections := ""
         try rest := IniRead(file, "settings")

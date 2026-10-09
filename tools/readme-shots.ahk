@@ -6,13 +6,21 @@
 ;     listed (neutral titles, fake contents), over a stand-in wallpaper covering the monitor the pane opens on; the capture is
 ;     cropped to the pane and the picture, and not taken if a window that isn't ours is above the wallpaper inside the crop.
 ;     [windows]: how many demo windows to list (default 5; 12 and more reach PEEK_MAX).
+;     [look]: the pane's look, velvet or windows11 (default: the app's default look).
 ;   settings: the settings panel alone (its own pixels), with default settings: it runs on an empty temporary data
-;     folder, so the user's own settings.ini is neither read nor written. At this display's own scale: docs\settings.png's 723x986 framing needs a 150 % display.
-; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows]
+;     folder, so the user's own settings.ini is neither read nor written. The panel gets its whole content height, every
+;     section with no scroll bar, also where that's taller than the screen: it's raised until all of it has been on the
+;     screen, and PrintWindow takes DWM's copy of the whole window. At this display's own scale: docs\settings.png is taken
+;     on a 150 % display.
+; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11]
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk settings <out.png>
 ; (default out: docs\meowtab.png / docs\meowtab-dark.png). Keep hands off the mouse and keyboard for ~5 s.
 DATA_DIR := A_Temp "\meowtab-shots-" A_TickCount   ; a new, empty data folder: default settings, and the user's own are never read or changed
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))
+if A_Args.Length > 3 && !(A_Args[4] = "velvet" || A_Args[4] = "windows11")
+    FileAppend("usage: readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11]`n", "*"), ExitApp(1)
+if A_Args.Length > 3                               ; the look, in that folder's settings.ini: the app's startup reads it (and picks the title font by it)
+    DirCreate(DATA_DIR), IniWrite(A_Args[4], DATA_DIR "\settings.ini", "settings", "PANE_LOOK")
 #Include %A_LineFile%\..\..\meowtab.ahk
 
 REPO := RegExReplace(A_LineFile, "\\[^\\]+\\[^\\]+$")   ; the folder above tools\
@@ -27,8 +35,8 @@ if which = "settings" && A_Args.Length < 2     ; no default out: the shot in doc
 out := A_Args.Length > 1 ? A_Args[2] : REPO "\docs\meowtab" (which = "dark" ? "-dark" : "") ".png"
 if !RegExMatch(out, "^([A-Za-z]:)?\\")         ; relative: to where it was started from
     out := A_InitialWorkingDir "\" out
-if which = "settings"
-    SettingsShot(out)
+if which = "settings"                             ; a room the panel can't fill (PanelFit): its whole content height
+    PANEL_ROOM := 100000, SettingsShot(out)
 DEMO := [["Trip plan — 旅行計畫.md", 1500, 950, "1E1E1E", "3C3C3C", "shell32.dll", 71, "code"]
     , ["小算盤 Calculator", 640, 980, "F3F3F3", "0067C0", "shell32.dll", 24, "keys"]
     , ["Photos — sleepy cat.png", 1400, 900, "202020", "2B2B2B", "imageres.dll", 68, "cat"]
@@ -83,12 +91,15 @@ SettingsShot(file) {   ; the settings panel alone; exits when done
     IMG_DIR := "..\images"                         ; the panel reads A_ScriptDir\IMG_DIR (tools\..\images), not REPO
     SettingsOpen(), Sleep(900)                     ; built and painted
     hw := pnl.gui.Hwnd, MouseGetPos(&mx, &my), WinGetPos(&x, &y, &w, &h, hw)
-    if mx >= x && mx < x + w && my >= y && my < y + h {   ; a cursor on the panel lights up a hover look: slide the panel aside
-        mi := Buffer(40, 0), NumPut("uint", 40, mi), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)   ; rcWork
-        WinMove mx > x + w // 2 ? NumGet(mi, 20, "int") : NumGet(mi, 28, "int") - w, y, , , hw
-    }
+    mi := Buffer(40, 0), NumPut("uint", 40, mi), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
+    if mx >= x && mx < x + w && my >= y && my < y + h   ; a cursor on the panel lights up a hover look: slide the panel aside
+        WinMove mx > x + w // 2 ? NumGet(mi, 20, "int") : NumGet(mi, 28, "int") - w, y, , , hw   ; to rcWork's left or right
     SendMessage 0x128, 0x10002, 0, hw              ; WM_UPDATEUISTATE, clear UISF_HIDEFOCUS: the focus ring, as after a first Tab
     Sleep 400
+    ; Taller than the screen: only what has been on it gets painted, and DWM keeps that (seen: the bar below the screen stayed
+    ; blank). So the panel is raised a screen at a time until its bottom is on it.
+    while y + h > (b := NumGet(mi, 16, "int"))    ; rcMonitor's bottom
+        y := Max(y - b + NumGet(mi, 8, "int"), b - h), WinMove(, y, , , hw), Sleep(400)
     Capture(0, 0, w, h, file, hw)
     PanelClose()
     ExitApp

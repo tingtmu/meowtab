@@ -157,8 +157,11 @@ Double-click the tray icon, or right-click it and choose **Settings…**. The de
 - **Mood images.** One card per mood. Click a card to choose a picture (PNG, JPG, BMP or GIF), or drag a file onto it. The `−  3  +` steppers set where "some" and "many" start.
 - **Clean background** (`✧ Clean`, on a card with your own picture) removes a plain light background and crops the picture to a square.
 - **Peek height.** How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes preview it with your own pictures.
+- **Look.** Two cards, **Velvet** (softer and warmer up close: warm glass, rounder tiles, a lifted selection) and **Windows 11** (as Windows draws it), each a small picture of the switcher in that look, in your Windows mode and accent colour. Click a card, or press Space on it, to pick it: a check marks the picked look, and **in use** the one MeowTab has now. The peek scenes and the title sample show the picked look at once, and **Save** applies it. `meowtab-classic` has no Look section.
 - **Title font.** Any installed font, at 10 to 24 pt.
 - **Shortcuts.** Click **Switch windows** or **Stay open**, then press the new combination; **Esc** keeps the old one. Switching takes Alt, Ctrl or Win with one key, and the same with Shift goes back (shown under it). A combination that can't work, such as one with Esc or the arrows or one already in use, is refused, and the line under the cards says why. **Defaults** puts back Alt+Tab and Ctrl+Alt+Tab. `meowtab-classic` has no Shortcuts section.
+
+The panel always shows at full size. Where the screen has less room than it needs, its sections scroll under a bar that stays at the bottom, with the hint line and the buttons: turn the mouse wheel over the panel or drag the thin scroll bar on its right, and a field you Tab to scrolls into view.
 
 **Save** (or Enter) writes `%APPDATA%\MeowTab\settings.ini` and reloads it. **Cancel** (or Esc) changes nothing. **Reset to defaults** removes the panel's settings from `settings.ini`; it never deletes pictures and keeps lines you added yourself, such as `WM_PROCESS`.
 
@@ -202,6 +205,7 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 | `PEEK_MAX` | `0.95` | main | panel | Share shown at `MANY_FROM + 4` windows and beyond (0.30-1.00, above `PEEK_MIN`). |
 | `SWITCH_KEYS` | `Alt+Tab` | main | panel | The switcher's shortcut: Alt, Ctrl or Win held with one key; with Shift it goes back. |
 | `STAY_KEYS` | `Ctrl+Alt+Tab` | main | panel | Opens the switcher that stays open once you let go. |
+| `PANE_LOOK` | `windows11` | main | panel | The switcher's look: `velvet` or `windows11`. |
 | `IMG_SIZE` | `250` / `100` | main / classic | ini | Picture size in pixels. |
 | `WM_PROCESS` | empty | both | ini | Exit when this process is gone, e.g. `glazewm.exe`. |
 | `LIST_WIDTH` | `700` | classic | ini | List width in pixels. |
@@ -271,16 +275,18 @@ It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path
 From the repo root (close any running copy first; adjust the path if AutoHotkey is installed elsewhere):
 
 ```
-& "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe" /ErrorStdOut tests\meowtab.test.ahk | more
+& "$env:ProgramFiles\AutoHotkey\v2\AutoHotkey64.exe" /ErrorStdOut tests\meowtab.test.ahk velvet | more
 ```
 
-`tests\meowtab.test.ahk` opens a few temporary windows, drives the real switching code and prints `PASS`/`FAIL` per check, ending with `ALL PASSED`. It covers recency order (including after a re-tile), Alt+Tab, Alt+Tab+Tab, the live previews being registered and released, the arrow keys, the grid for many windows with its scrolling and scroll bar, and switching and closing with the mouse. It also checks the shortcuts: how `settings.ini` values are read and refused, Alt+Tab and a custom Ctrl+Q driven with real keys, and the stay-open switcher (Enter, Esc, a shortcut while it's open, typing blocked, a click outside). In the settings panel it captures shortcuts with real keys: Alt+Tab opens no switcher, refused combinations keep the old value, Esc cancels, and no way of ending a capture leaves the hotkeys suspended. It needs an unlocked, connected desktop.
+Its argument is the look to test in: `velvet` as above, or `windows11`. Without one, it runs in the default look.
+
+`tests\meowtab.test.ahk` opens a few temporary windows, drives the real switching code and prints `PASS`/`FAIL` per check, ending with `ALL PASSED`. It covers recency order (including after a re-tile), Alt+Tab, Alt+Tab+Tab, the live previews being registered and released, the arrow keys, the grid for many windows with its scrolling and scroll bar, and switching and closing with the mouse. It also checks the shortcuts: how `settings.ini` values are read and refused, Alt+Tab and a custom Ctrl+Q driven with real keys, and the stay-open switcher (Enter, Esc, a shortcut while it's open, typing blocked, a click outside). In the settings panel it captures shortcuts with real keys: Alt+Tab opens no switcher, refused combinations keep the old value, Esc cancels, and no way of ending a capture leaves the hotkeys suspended. It scrolls the panel in a small room, and picks a look on the Look cards (a click, then Space): the card is marked, the previews redraw, and Save writes the look; Classic's own panel has no Look section. It needs an unlocked, connected desktop.
 
 `tests\cutout.test.ahk` checks **Clean background** against the expected results in `tests/cutout/`; CI runs it too.
 
 `tools\readme-shots.ahk` takes the screenshots above from the real pane. It lists only its own demo windows over a stand-in wallpaper, so none of your own windows can end up in an image.
 
-`tools\checks\run.ps1` repeats the many-windows checks: `shots` captures the grid in light and dark (8 to 30 windows, mid-scroll, a real drag of the scroll bar), and `timing` times each frame. `stay` times the stay-open switcher the same way, and `keys` checks that Win+Q as the shortcut, a lone Alt or Win in the stay-open switcher, and a Win+Q capture in the settings panel open no Start menu or menu bar. All of them list only their own demo windows, write to `build\checks\` and need the mouse and keyboard left alone for about a minute. `tools\checks\control.ahk` times plain computation for comparison.
+`tools\checks\run.ps1` repeats the many-windows checks: `shots` captures the grid in light and dark (8 to 30 windows, mid-scroll, a real drag of the scroll bar), and `timing` times each frame. `stay` times the stay-open switcher the same way, and `keys` checks that Win+Q as the shortcut, a lone Alt or Win in the stay-open switcher, and a Win+Q capture in the settings panel open no Start menu or menu bar. `-Look velvet` or `-Look windows11` runs any of them in that look. All of them list only their own demo windows, write to `build\checks\` and need the mouse and keyboard left alone for about a minute. `tools\checks\control.ahk` times plain computation for comparison.
 
 ## Known issues
 

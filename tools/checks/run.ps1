@@ -1,22 +1,30 @@
-# run.ps1 runs a checks script (shots.ahk, timing.ahk, stay.ahk or keys.ahk) against a source root, which stays untouched: the
-# AutoHotkey wrapper (and, for timing and stay, an instrumented COPY of the root's sources) is generated under build\checks\gen\. Options:
+# run.ps1 runs a checks script (shots.ahk, timing.ahk, stay.ahk, keys.ahk or opens.ahk) against a source root, which stays untouched:
+# the AutoHotkey wrapper (and, for timing, stay and opens, an instrumented COPY of the root's sources) is generated under
+# build\checks\gen\. Options:
 #   shots   [-Out <dir>] [-Tag <name>] [-Theme light,dark] [-Scenes abcdm]       timing  [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...]
 #   stay    [-Out <dir>] [-Tag <name>]   (stay-open timings)                     keys    (Win+Q: no Start menu, no menu bar)
+#   opens   [-Out <dir>] [-Tag <name>] [-Count <n>]   (n opens, default 200: handles and memory stay flat, no timer runs after)
+# -Look velvet|windows11 (any mode) runs the app in that look: the wrapper writes PANE_LOOK into the new data folder's settings.ini, as
+# the test does; without it nothing is written and the app's default applies. The run prints the look the app runs in.
 # -Root is the source folder to check (default: the repo root); point it at another one, such as an exported older commit, to compare
-# before and after. -Tag names the run (default: the root's folder name); -Out defaults to build\checks\<tag>; -Ahk defaults to the
-# first AutoHotkey v2 found under $env:ProgramFiles or $env:LOCALAPPDATA\Programs; -Validate only load-checks (no windows, no input).
-# Run from the repo root:  powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 shots|timing|stay|keys [-Root <dir>] ...
+# before and after. -Tag names the run (default: the root's folder name, plus -<look> with -Look); -Out defaults to build\checks\<tag>;
+# -Ahk defaults to the first AutoHotkey v2 found under $env:ProgramFiles or $env:LOCALAPPDATA\Programs; -Validate only load-checks
+# (no windows, no input).
+# Run from the repo root:  powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 shots|timing|stay|keys|opens [-Root <dir>] ...
 #                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 shots -Theme light -Scenes a
-#                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 timing -Validate
-# Exit code: 0 ok, 1 a check failed (keys), 2 the 2-minute safety exit, 3 an error in the run, 4 the privacy guard refused a capture
-# (shots) or no screen, so nothing was shown or sent (stay, keys), 5 a stray AutoHotkey window was already on screen (nothing was
-# started). Keep hands off the mouse and keyboard while it runs (about 40 s, per theme for shots; 25 s for keys), except with -Validate.
+#                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 timing -Look velvet -Validate
+# Exit code: 0 ok, 1 a check failed (keys, opens), 2 the safety exit (2 minutes; opens: its n opens' time), 3 an error in the run, 4 the
+# privacy guard refused a capture (shots) or no screen, so nothing was shown or sent (stay, keys, opens), 5 a stray AutoHotkey window
+# was already on screen (nothing was started). Keep hands off the mouse and keyboard while it runs (about 40 s, per theme for shots;
+# 25 s for keys; 2.5 min for 200 opens), except with -Validate.
 param(
-    [Parameter(Mandatory, Position = 0)][ValidateSet('shots', 'timing', 'stay', 'keys')][string]$Mode,
+    [Parameter(Mandatory, Position = 0)][ValidateSet('shots', 'timing', 'stay', 'keys', 'opens')][string]$Mode,
     [string]$Root,                               # the source folder to check (default: the repo root), e.g. an exported older commit
     [string]$Out, [string]$Tag,
+    [ValidateSet('velvet', 'windows11')][string]$Look,   # the pane's look (default: the app's own default)
     [string[]]$Theme = @('light', 'dark'), [string]$Scenes = 'abcdm',
     [string[]]$Wrap = @(),                       # timing: more functions to wrap and time (ScrollTick, SelectTile, PaneWheel always)
+    [int]$Count = 200,                           # opens: how many
     [switch]$Validate,                           # only generate and load-check (no windows, no input)
     [string]$Ahk                                 # AutoHotkey64.exe (default: the first of the two usual v2 install paths that exists, below)
 )
@@ -33,7 +41,7 @@ if (-not $Ahk) {
 }
 $Root = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\')
 if (-not (Test-Path -LiteralPath "$Root\meowtab.ahk")) { throw "no meowtab.ahk in $Root" }
-if (-not $Tag) { $Tag = Split-Path $Root -Leaf }
+if (-not $Tag) { $Tag = (Split-Path $Root -Leaf) + $(if ($Look) { "-$Look" }) }   # each look's runs apart
 if (-not $Out) { $Out = Join-Path $repo "build\checks\$Tag" }
 $Out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Out)
 $gen = Join-Path $repo "build\checks\gen\$Tag-$Mode"
@@ -42,7 +50,8 @@ New-Item -ItemType Directory -Force $gen, $Out | Out-Null
 $utf8 = New-Object Text.UTF8Encoding($false)
 
 # The wrapper: warnings to stdout (never a blocking dialog), the root's path, a new empty data folder (the user's own settings
-# are never read or changed), then the includes.
+# are never read or changed; with -Look, its settings.ini sets the look), then the includes. Right after the app's include, the
+# look it runs in is printed ($sayLook: an older source without PANE_LOOK has only the Windows 11 look).
 $head = @"
 #Requires AutoHotkey v2.0
 #SingleInstance Off
@@ -55,21 +64,27 @@ DATA_DIR := A_Temp "\meowtab-$Mode-" A_TickCount
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))
 
 "@
+if ($Look) { $head += 'DirCreate(DATA_DIR), IniWrite("' + $Look + '", DATA_DIR "\settings.ini", "settings", "PANE_LOOK")' + "`n" }
+$sayLook = 'FileAppend("look: " (IsSet(PANE_LOOK) ? PANE_LOOK : "windows11 (no PANE_LOOK in this source)") "`n", "*")' + "`n"
 
 $runs = New-Object 'System.Collections.Generic.List[string[]]'   # one argument list per AutoHotkey process
 if ($Mode -eq 'shots') {
-    $main = "#Include $Root\meowtab.ahk`n#Include $checks\lib.ahk`n#Include $checks\shots.ahk`n"
+    $main = "#Include $Root\meowtab.ahk`n$sayLook#Include $checks\lib.ahk`n#Include $checks\shots.ahk`n"
     # One process per theme, so both start alike (the first real mouse press in a process is special at HEAD, see shots.ahk "m").
     if ($Validate) { $runs.Add([string[]]@($Out, ($Theme -join ','), $Scenes)) }
     else { foreach ($t in $Theme) { $runs.Add([string[]]@($Out, $t, $Scenes)) } }
 }
-elseif ($Mode -eq 'timing') {
-    # An instrumented copy: each frame function that exists is renamed <name>__orig and wrapped by a function of the old name that
-    # times the call, so timers and callers go through it. The root's files are only read.
+elseif ($Mode -eq 'timing' -or $Mode -eq 'opens') {
+    # An instrumented copy: each function to wrap that exists is renamed <name>__orig and wrapped by a function of the old name that
+    # times the call into TimeLog, so timers and callers go through it. timing wraps the frame functions; opens, every function the
+    # app hands SetTimer, so that opens.ahk sees any timer still running after the last close. The root's files are only read;
+    # meowtab-classic.ahk isn't included (and has its own WatchAlt), so it isn't copied.
     $src = Join-Path $gen 'src'
     New-Item -ItemType Directory $src | Out-Null
     $texts = @{}
-    foreach ($f in Get-ChildItem -LiteralPath $Root -Filter *.ahk -File) { $texts[$f.Name] = [IO.File]::ReadAllText($f.FullName) }
+    foreach ($f in Get-ChildItem -LiteralPath $Root -Filter *.ahk -File | Where-Object Name -ne 'meowtab-classic.ahk') {
+        $texts[$f.Name] = [IO.File]::ReadAllText($f.FullName)
+    }
     $tmpl = @'
 
 @FN@(p*) {
@@ -78,8 +93,13 @@ elseif ($Mode -eq 'timing') {
     finally TimeLog("@FN@", Qpc() - t)
 }
 '@
-    $wrappers = "; generated by run.ps1: timing wrappers`n"
-    foreach ($fn in (@('ScrollTick', 'SelectTile', 'PaneWheel') + $Wrap | Select-Object -Unique)) {
+    $fns = @('ScrollTick', 'SelectTile', 'PaneWheel')
+    if ($Mode -eq 'opens') {
+        $rxTimer = [regex]'\bSetTimer\(?\s*([A-Za-z_]\w*)'   # a function handed to SetTimer by name (WM_PROCESS's check is a fat arrow)
+        $fns = @($texts.Values | ForEach-Object { $rxTimer.Matches($_) } | ForEach-Object { $_.Groups[1].Value })
+    }
+    $wrappers = "; generated by run.ps1: $Mode wrappers`n"
+    foreach ($fn in ($fns + $Wrap | Select-Object -Unique)) {
         $rx = [regex]"(?m)^$([regex]::Escape($fn))\("
         $hits = @($texts.Keys | Where-Object { $rx.IsMatch($texts[$_]) })
         if ($hits.Count -eq 0) { Write-Host "wrap: $fn is not defined in this source, skipped"; continue }
@@ -90,8 +110,8 @@ elseif ($Mode -eq 'timing') {
     }
     foreach ($name in $texts.Keys) { [IO.File]::WriteAllText((Join-Path $src $name), $texts[$name], $utf8) }
     [IO.File]::WriteAllText("$gen\wrap.ahk", $wrappers, $utf8)
-    $main = "#Include $src\meowtab.ahk`n#Include $gen\wrap.ahk`n#Include $checks\lib.ahk`n#Include $checks\timing.ahk`n"
-    $runs.Add([string[]]@($Out, $Tag))
+    $main = "#Include $src\meowtab.ahk`n$sayLook#Include $gen\wrap.ahk`n#Include $checks\lib.ahk`n#Include $checks\$Mode.ahk`n"
+    $runs.Add([string[]]$(if ($Mode -eq 'opens') { @($Out, $Tag, $Count) } else { @($Out, $Tag) }))
 }
 elseif ($Mode -eq 'stay') {
     # A copy in which meowtab.ahk's CollectWindows is renamed CollectWindows__orig: stay-seam.ahk defines it again, listing only the
@@ -107,18 +127,18 @@ elseif ($Mode -eq 'stay') {
         }
         [IO.File]::WriteAllText((Join-Path $src $f.Name), $t, $utf8)
     }
-    $main = "#Include $src\meowtab.ahk`n#Include $checks\lib.ahk`n#Include $checks\stay-seam.ahk`n#Include $checks\stay.ahk`n"
+    $main = "#Include $src\meowtab.ahk`n$sayLook#Include $checks\lib.ahk`n#Include $checks\stay-seam.ahk`n#Include $checks\stay.ahk`n"
     $runs.Add([string[]]@($Out, $Tag))
 }
 else {
     # keys: the app starts with SWITCH_KEYS=Win+Q in the new data folder (the stay-open shortcut stays the default, Ctrl+Alt+Tab).
-    $main = 'DirCreate(DATA_DIR), IniWrite("Win+Q", DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS")' + "`n#Include $Root\meowtab.ahk`n#Include $checks\keys.ahk`n"
+    $main = 'DirCreate(DATA_DIR), IniWrite("Win+Q", DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS")' + "`n#Include $Root\meowtab.ahk`n$sayLook#Include $checks\keys.ahk`n"
     $runs.Add([string[]]@())
 }
 
 $wrapper = Join-Path $gen "$Mode.ahk"
 [IO.File]::WriteAllText($wrapper, $head + $main, $utf8)
-Write-Host "run: $Mode on $Root`nwrapper: $wrapper`nout: $Out"
+Write-Host "run: $Mode on $Root, look: $(if ($Look) { $Look } else { "the app's default" })`nwrapper: $wrapper`nout: $Out"
 if (-not (Test-Path -LiteralPath $wrapper)) { throw "no wrapper at $wrapper" }
 $ErrorActionPreference = 'Continue'
 $worst = 0
