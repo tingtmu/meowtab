@@ -202,8 +202,8 @@ Check("Alt+Tab from non-listed window goes to 1st (D)", names.Get(WinExist("A"),
 SendLevel 1                                ; let our own hotkeys see these keys
 SendEvent "{LAlt down}"                    ; held, so WatchAlt keeps the list open
 Step(1), Wait(50), SendEvent("{Blind}{Right}"), Wait(100)   ; recency D A B C: Tab -> A, Alt+Right -> B
-SendEvent "{LAlt up}"
-SendLevel 0
+SendEvent "{Blind}{vkE8}{LAlt up}"         ; the mask key first, as AutoHotkey sends after Alt+Tab: Right was taken, so Windows would
+SendLevel 0                                ; see a lone Alt and put D in menu mode, which holds this thread until something ends it
 Sleep 300                                  ; WatchAlt sees Alt released and switches
 Check("Alt+Tab, Alt+Right goes to 3rd (B)", names.Get(WinExist("A"), "?"), "B")
 
