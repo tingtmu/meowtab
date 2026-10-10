@@ -80,16 +80,17 @@ StrayAhk() {
 }
 
 Stage(count) {   ; the monitor the pane opens on, the root's pictures, and `count` demo windows (painted)
-    global demoWins, MON_RECT, imgs, spans
+    global demoWins, MON_RECT, imgs, delays, spans
     if stray := StrayAhk() {
         Say("not starting, an AutoHotkey window is already on screen: " stray)
         ExitApp(5)
     }
     mi := Buffer(40, 0), NumPut("uint", 40, mi), DllCall("GetMonitorInfoW", "ptr", CurrentMonitor(), "ptr", mi)
     MON_RECT := [NumGet(mi, 4, "int"), NumGet(mi, 8, "int"), NumGet(mi, 12, "int"), NumGet(mi, 16, "int")]
-    imgs := [], spans := []                        ; the include looked for the pictures next to the wrapper: load the root's own
-    for mood in ["few", "some", "many"]
-        imgs.Push(ScaledBitmap(SRC_ROOT "\" IMG_DIR "\" IMG_PREFIX "_" mood ".png", IMG_SIZE, &span)), spans.Push(span)
+    imgs := [], delays := [], spans := []          ; the include looked for the pictures next to the wrapper: load the root's own,
+    for mood in ["few", "some", "many"]            ; or run.ps1 -Gif's GIF (GIF_ALL) on every mood
+        imgs.Push(GifStrip(IsSet(GIF_ALL) ? GIF_ALL : SRC_ROOT "\" IMG_DIR "\" IMG_PREFIX "_" mood ".png", IMG_SIZE, &span, &frameMs))
+        , delays.Push(frameMs), spans.Push(span)
     demoWins := DemoSet(count), Sleep(2500)
 }
 

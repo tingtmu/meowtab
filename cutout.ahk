@@ -21,7 +21,11 @@ CutoutRun(file, done) {
     j := CutoutStart(file)
     if !j.HasOwnProp("thread")
         return done({changed: false, msg: j.msg})
-    j.done := done, j.cancelled := false
+    CutoutWatch(j, (j) => (r := CutoutEnd(j, j.src), done({changed: r.changed, msg: r.msg})))
+}
+
+CutoutWatch(j, ended) {   ; a started job polled until its worker ends, then ended(j) (never once cancelled)
+    j.ended := ended, j.cancelled := false
     CUTOUT_JOBS.Push(j)
     SetTimer CutoutPoll, 30
 }
@@ -39,7 +43,7 @@ CutoutPoll() {
             DllCall("CloseHandle", "ptr", j.thread)   ; nobody wants it any more: no save, no done()
             continue
         }
-        try r := CutoutEnd(j, j.src), done := j.done, done({changed: r.changed, msg: r.msg})
+        try fn := j.ended, fn(j)
         catch as e                                    ; one failing job must not strand the others
             OutputDebug "meowtab: cleaning " j.src " failed (" e.Message ")"
     }
@@ -52,10 +56,10 @@ CutoutCancel() {
         j.cancelled := true
 }
 
-; Load the picture and start cutout_run on a thread. Returns the job {src, w, h, px, scratch, orig, buf,
-; thread}, or a finished result (see CutoutFile) when it can't start.
-CutoutStart(src) {
-    j := CutoutLoad(src)
+; Load the picture (or take j, already loaded: a GIF's frame) and start cutout_run on a thread. Returns the job {src, w, h,
+; px, scratch, orig, buf, thread}, or a finished result (see CutoutFile) when it can't start.
+CutoutStart(src, j := 0) {
+    j := j || CutoutLoad(src)
     if j.HasOwnProp("status")
         return j
     if !entry := CutoutEntry()
@@ -96,21 +100,25 @@ CutoutLoad(src) {
             return CutoutSay(21)
         if w * h > 4194304                            ; 4 megapixels: refused before allocating anything
             return CutoutSay(22, {w: w, h: h})
-        try px := Buffer(w * h * 4)
-        catch MemoryError
-            return CutoutSay(20, {w: w, h: h}, "out of memory")
-        rc := Buffer(16), NumPut("int", 0, "int", 0, "int", w, "int", h, rc)
-        bd := Buffer(32, 0), NumPut("uint", w, "uint", h, "int", w * 4, "int", 0x26200A, "ptr", px.Ptr, bd)
-        if DllCall("gdiplus\GdipBitmapLockBits", "ptr", bm, "ptr", rc, "uint", 5, "int", 0x26200A, "ptr", bd)   ; ReadOnly | UserInputBuf, 32bppARGB
-            return CutoutSay(21)
-        DllCall("gdiplus\GdipBitmapUnlockBits", "ptr", bm, "ptr", bd)
-        return {w: w, h: h, px: px}
+        return CutoutPixels(bm, w, h)
     } finally
         DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
 }
 
+CutoutPixels(bm, w, h) {   ; GDI+ bitmap of w x h -> {w, h, px}, or a result with status 20 / 21
+    try px := Buffer(w * h * 4)
+    catch MemoryError
+        return CutoutSay(20, {w: w, h: h}, "out of memory")
+    rc := Buffer(16), NumPut("int", 0, "int", 0, "int", w, "int", h, rc)
+    bd := Buffer(32, 0), NumPut("uint", w, "uint", h, "int", w * 4, "int", 0x26200A, "ptr", px.Ptr, bd)
+    if DllCall("gdiplus\GdipBitmapLockBits", "ptr", bm, "ptr", rc, "uint", 5, "int", 0x26200A, "ptr", bd)   ; ReadOnly | UserInputBuf, 32bppARGB
+        return CutoutSay(21)
+    DllCall("gdiplus\GdipBitmapUnlockBits", "ptr", bm, "ptr", bd)
+    return {w: w, h: h, px: px}
+}
+
 ; The worker has ended: read the outcome; for 0 / 1 write the crop to dest (skipped when nothing would change
-; in place). "Unchanged" = the crop is the whole picture and its pixels are the input's.
+; in place, or dest is "": the outcome only). "Unchanged" = the crop is the whole picture and its pixels are the input's.
 CutoutEnd(j, dest) {
     DllCall("CloseHandle", "ptr", j.thread)
     st := NumGet(j.buf, 36, "int")
@@ -121,25 +129,34 @@ CutoutEnd(j, dest) {
         return CutoutSay(22, j)
     same := j.left = 0 && j.top = 0 && j.side = j.w && j.side = j.h
         && (st = 1 || DllCall("ntdll\RtlCompareMemory", "ptr", j.orig, "ptr", j.px, "uptr", j.px.Size, "uptr") = j.px.Size)
-    if !(same && dest = j.src) && !CutoutSave(j, dest)
+    if dest != "" && !(same && dest = j.src) && !CutoutSave(j, dest)
         return CutoutSay(23, j, "couldn't write " dest)
     return CutoutSay(st, j, "", same)
 }
 
-CutoutSave(j, dest) {   ; side x side transparent canvas, the box's part of the picture copied in (clipped); true = saved
+CutoutSave(j, dest) {   ; the box's canvas (CutoutBox) as a PNG; true = saved
+    s := j.side
+    if !out := CutoutBox(j)
+        return false
+    if DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", s, "int", s, "int", s * 4, "int", 0x26200A, "ptr", out, "ptr*", &bm := 0)
+        return false
+    ok := SavePng(bm, dest), DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
+    return ok
+}
+
+; The box (j.left, j.top, j.side) as a side x side transparent canvas, the picture's part of it copied in (clipped):
+; B,G,R,A rows without padding. 0 = out of memory.
+CutoutBox(j) {
     s := j.side, x0 := Max(j.left, 0), x1 := Min(j.left + s, j.w)
     try out := Buffer(s * s * 4, 0)
     catch MemoryError
-        return false
+        return 0
     if x1 > x0
         Loop Min(j.top + s, j.h) - (y0 := Max(j.top, 0)) {
             y := y0 + A_Index - 1
             DllCall("RtlMoveMemory", "ptr", out.Ptr + ((y - j.top) * s + x0 - j.left) * 4, "ptr", j.px.Ptr + (y * j.w + x0) * 4, "uptr", (x1 - x0) * 4)
         }
-    if DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", s, "int", s, "int", s * 4, "int", 0x26200A, "ptr", out, "ptr*", &bm := 0)
-        return false
-    ok := SavePng(bm, dest), DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
-    return ok
+    return out
 }
 
 ; Status -> result {status, msg, changed, w, h, left, top, side} with the panel's messages (shown under the

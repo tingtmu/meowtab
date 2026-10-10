@@ -21,9 +21,16 @@ SettingsFile() => DataDir() "\settings.ini"
 AppDir() => A_IsCompiled ? A_ScriptDir "\" : RegExReplace(A_LineFile, "[^\\]+$")
 Moods() => ["few", "some", "many"]
 MoodOf(n) => n < SOME_FROM ? 1 : n < MANY_FROM ? 2 : 3              ; window count -> 1 few, 2 some, 3 many
-UserImage(prefix, mood) => UserImagesDir() "\" prefix "_" mood ".png"             ; where the user's pictures are written
-MoodImage(prefix, mood) => FileExist(u := UserImage(prefix, mood)) ? u : A_ScriptDir "\" IMG_DIR "\" prefix "_" mood ".png"   ; user's first, then the app's
-PendingImage(mood) => UserImagesDir() "\custom_" mood ".pending.png"   ; picked in the panel, not saved yet
+UserImage(prefix, mood, ext := "png") => UserImagesDir() "\" prefix "_" mood "." ext   ; where the user's pictures are written
+MoodImage(prefix, mood) {   ; user's first, then the app's; in each folder a .gif before a .png (missing: the app's .png)
+    for dir in [UserImagesDir(), A_ScriptDir "\" IMG_DIR]
+        for ext in ["gif", "png"]
+            if FileExist(f := dir "\" prefix "_" mood "." ext)
+                return f
+    return f
+}
+; Picked in the panel, not saved yet: the mood's pending .gif, else its .png (whether or not there is one).
+PendingImage(mood) => FileExist(g := UserImagesDir() "\custom_" mood ".pending.gif") ? g : UserImagesDir() "\custom_" mood ".pending.png"
 
 ; Startup: remember the built-in defaults, then overlay settings.ini. Every value is checked (type, range,
 ; installed font, existing images); a bad one keeps its default and is reported once (tray tip + debug log).
@@ -71,7 +78,7 @@ SettingsCheck(s, raw, def, &why) {
         for mood in Moods()
             if FileExist(MoodImage(raw, mood))
                 return raw
-        return (why := "no " raw "_*.png images found, using " def, def)
+        return (why := "no " raw "_*.png or .gif images found, using " def, def)
     case "process":
         if raw = "" || RegExMatch(raw, "i)^[^\\/:*?`"<>|]{1,80}\.exe$")
             return raw
@@ -204,7 +211,8 @@ KeysPair() {   ; the stay-open shortcut must differ from switching and going bac
 ; ----- Pictures -----
 
 ; Any GDI+-readable picture -> dest as PNG, turned upright (EXIF) and at most 1024 px, so the switchers'
-; startup stays quick. A PNG that needs neither is copied as is. "" = ok, else why not.
+; startup stays quick. A PNG that needs neither is copied as is. An animated GIF stays one (ImportGif). dest's
+; extension becomes .png or .gif, and the mood's picture in the other format goes. "" = ok, else why not.
 ImportImage(src, dest) {
     SplitPath dest, , &dir
     try DirCreate dir                                    ; the user's images folder may not exist yet
@@ -215,32 +223,63 @@ ImportImage(src, dest) {
     if turn := ExifTurn(bm)
         DllCall("gdiplus\GdipImageRotateFlip", "ptr", bm, "int", turn)
     DllCall("gdiplus\GdipGetImageWidth", "ptr", bm, "uint*", &w := 0), DllCall("gdiplus\GdipGetImageHeight", "ptr", bm, "uint*", &h := 0)
-    s := Min(1, 1024 / Max(w, h, 1))
+    if (n := GifCount(bm)) > 1
+        return (DllCall("gdiplus\GdipDisposeImage", "ptr", bm), ImportGif(src, n, Max(w, h), RegExReplace(dest, "\.\w+$", ".gif")))
+    s := Min(1, 1024 / Max(w, h, 1)), dest := RegExReplace(dest, "\.\w+$", ".png")
     if s = 1 && !turn && src ~= "i)\.png$" {
         DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
         try FileCopy src, dest, 1
         catch as e
             return "couldn't copy it (" e.Message ")"
-        return ""
+        return DropTwin(dest)
     }
     gr := Canvas(out := NewBitmap(dw := Max(1, Round(w * s)), dh := Max(1, Round(h * s))))
     DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 7)   ; HighQualityBicubic
     DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", bm, "int", 0, "int", 0, "int", dw, "int", dh)
     DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr), DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
     ok := SavePng(out, dest), DllCall("gdiplus\GdipDisposeImage", "ptr", out)
-    return ok ? "" : "couldn't write " dest
+    return ok ? DropTwin(dest) : "couldn't write " dest
 }
 
-; Save: pending pictures become custom_<mood>.png; moods without one get a copy of the current set's
+; An animated GIF of n frames, its longer side side px -> dest. Up to 512 px it's copied as is, keeping its own palette
+; and timing; bigger, every frame is scaled to 512 px and written again with its delays. Over 100 frames: refused.
+ImportGif(src, n, side, dest) {
+    if n > 100
+        return "too many frames (over 100)"
+    if side <= 512 {
+        try FileCopy src, dest, 1
+        catch as e
+            return "couldn't copy it (" e.Message ")"
+        return DropTwin(dest)
+    }
+    ok := (frames := GifFrames(src, 512, &delays)).Length = n && GifWrite(frames, delays, dest)
+    for f in frames
+        DllCall("gdiplus\GdipDisposeImage", "ptr", f)
+    return ok ? DropTwin(dest) : "couldn't write " dest
+}
+
+DropTwin(file) {   ; a mood has one picture: file's twin in the other format (.png / .gif) goes. "" = ok
+    twin := RegExReplace(file, "\.\w+$", file ~= "i)\.gif$" ? ".png" : ".gif")
+    try FileExist(twin) && FileDelete(twin)
+    catch as e
+        return "couldn't remove " twin " (" e.Message ")"
+    return ""
+}
+
+; Save: pending pictures become custom_<mood>.png or .gif; moods without one get a copy of the current set's
 ; picture (or lose a stale one), so the "custom" set always shows what the panel showed. "" = ok.
 ImagesCommit(prefix) {
     for mood in Moods() {
-        pend := PendingImage(mood), live := UserImage("custom", mood), cur := MoodImage(prefix, mood)
+        pend := PendingImage(mood), cur := MoodImage(prefix, mood)
+        if !FileExist(pend) && prefix = "custom"         ; the saved picture stays
+            continue
         try {
-            if FileExist(pend)
-                FileMove pend, live, 1
-            else if prefix != "custom"
-                FileExist(cur) ? FileCopy(cur, live, 1) : FileExist(live) && FileDelete(live)
+            ext := FileExist(pend) ? SubStr(pend, -3) : FileExist(cur) ? SubStr(cur, -3) : ""
+            if ext != ""
+                FileExist(pend) ? FileMove(pend, UserImage("custom", mood, ext), 1) : FileCopy(cur, UserImage("custom", mood, ext), 1)
+            for x in ["gif", "png"]                      ; the other format's picture goes, and a stale one
+                if x != ext && FileExist(f := UserImage("custom", mood, x))
+                    FileDelete f
         } catch as e
             return "couldn't save the " mood " picture (" e.Message ")"
     }
@@ -248,7 +287,7 @@ ImagesCommit(prefix) {
 }
 
 PendingClear() {   ; drop unsaved pictures (and any leftover backups of them)
-    Loop Files UserImagesDir() "\custom_*.pending.png*"
+    Loop Files UserImagesDir() "\custom_*.pending.*"
         try FileDelete A_LoopFileFullPath
         catch as e
             OutputDebug "meowtab: couldn't delete " A_LoopFileFullPath " (" e.Message ")"

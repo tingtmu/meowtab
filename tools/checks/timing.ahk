@@ -10,8 +10,8 @@
 ; and how many took over 8 ms; raw samples go to <Out>\timing-<tag>.txt.
 ; Run from the repo root:  powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 timing
 ;                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 timing -Validate
-; (also [-Root <dir>] [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...], see run.ps1; default out: build\checks\<tag>). Keep hands off the
-; mouse and keyboard while it runs (about 40 s).
+; (also [-Root <dir>] [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...] [-Gif <file>], see run.ps1; default out: build\checks\<tag>).
+; Keep hands off the mouse and keyboard while it runs (about 40 s).
 global SAMPLES := Map(), phase := ""               ; samples (ms) per "phase / call"
 TimingMain(A_Args[1], A_Args[2])
 ExitApp 0

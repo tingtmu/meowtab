@@ -508,6 +508,7 @@ Wait(VELVET_IN_MS + 100), DllCall("GetLayeredWindowAttributes", "ptr", g.Hwnd, "
 probe := Layered() " " alpha, DllCall("SetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr", ex, "ptr"), ANIM_EFFECTS := false
 Check("a close mid-motion leaves no motion timer running: the pane not layered, no glide, the picture hidden, the probe's alpha untouched"
     , shut " " (glide ? 1 : 0) " " DllCall("IsWindowVisible", "ptr", peek.Hwnd) " " probe, "0 0 0 1 1")
+#Include %A_LineFile%\..\gif-peek.ahk
 
 ; User data goes to DATA_DIR (the user's AppData\MeowTab in real use), never next to the script.
 got := ""
@@ -534,6 +535,7 @@ Check("the lookup finds the user folder first", MoodImage("custom", "some"), DAT
 Check("else falls back to the app folder", MoodImage("chill", "some"), A_ScriptDir "\" IMG_DIR "\chill_some.png")
 FileCopy src, DATA_DIR "\images\chill_some.png"
 Check("a user set of the same name wins", MoodImage("chill", "some"), DATA_DIR "\images\chill_some.png")
+#Include %A_LineFile%\..\gif-files.ahk
 Check("the app's settings.ini and images\ are unchanged", AppFiles(), before)
 IniWrite "glass", DATA_DIR "\settings.ini", "settings", "PANE_LOOK"
 runLook := PANE_LOOK, PANE_LOOK := lookDefault, SettingsLoad()   ; a reload from the built-in look, as a restart has it
@@ -746,6 +748,7 @@ for lk in [other, runLook] {                      ; the click picked the other l
 Check("then Space on the " runLook " card picks it back. Save's values carry each pick, and settings.ini holds it as PANE_LOOK"
     . ", but no line for the built-in look (" lookDefault ")", got, want)
 PanelClose(), PANEL_ROOM := 0
+#Include %A_LineFile%\..\gif-panel.ahk
 ; Classic's own panel, opened by Classic in a process of its own on a data folder of its own: no LOOK section, as Classic has
 ; no PANE_LOOK (the panel shows the section where the script defines it).
 classic := DATA_DIR "\classic-panel.ahk", answer := DATA_DIR "\classic-panel.txt"

@@ -1,9 +1,11 @@
 # run.ps1 runs a checks script (shots.ahk, timing.ahk, stay.ahk, keys.ahk or opens.ahk) against a source root, which stays untouched:
 # the AutoHotkey wrapper (and, for timing, stay and opens, an instrumented COPY of the root's sources) is generated under
 # build\checks\gen\. Options:
-#   shots   [-Out <dir>] [-Tag <name>] [-Theme light,dark] [-Scenes abcdm]       timing  [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...]
+#   shots   [-Out <dir>] [-Tag <name>] [-Theme light,dark] [-Scenes abcdm]       timing  [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...] [-Gif <file>]
 #   stay    [-Out <dir>] [-Tag <name>]   (stay-open timings)                     keys    (Win+Q: no Start menu, no menu bar)
 #   opens   [-Out <dir>] [-Tag <name>] [-Count <n>]   (n opens, default 200: handles and memory stay flat, no timer runs after)
+# -Gif <file> (timing) puts that GIF on every mood in place of the root's pictures (lib.ahk's Stage), and adds -gif to the default tag.
+# -Effects on|off (any mode) sets ANIM_EFFECTS, in place of Windows' Animation effects: Velvet's motion and a GIF's playback follow it.
 # -Look velvet|windows11 (any mode) runs the app in that look: the wrapper writes PANE_LOOK into the new data folder's settings.ini, as
 # the test does; without it nothing is written and the app's default applies. The run prints the look the app runs in.
 # -Root is the source folder to check (default: the repo root); point it at another one, such as an exported older commit, to compare
@@ -25,6 +27,8 @@ param(
     [string[]]$Theme = @('light', 'dark'), [string]$Scenes = 'abcdm',
     [string[]]$Wrap = @(),                       # timing: more functions to wrap and time (ScrollTick, SelectTile, PaneWheel always)
     [int]$Count = 200,                           # opens: how many
+    [string]$Gif,                                # timing: this GIF on every mood (default: the root's pictures)
+    [ValidateSet('on', 'off')][string]$Effects,  # ANIM_EFFECTS (default: Windows' Animation effects)
     [switch]$Validate,                           # only generate and load-check (no windows, no input)
     [string]$Ahk                                 # AutoHotkey64.exe (default: the first of the two usual v2 install paths that exists, below)
 )
@@ -41,7 +45,8 @@ if (-not $Ahk) {
 }
 $Root = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\')
 if (-not (Test-Path -LiteralPath "$Root\meowtab.ahk")) { throw "no meowtab.ahk in $Root" }
-if (-not $Tag) { $Tag = (Split-Path $Root -Leaf) + $(if ($Look) { "-$Look" }) }   # each look's runs apart
+if ($Gif) { $Gif = (Resolve-Path -LiteralPath $Gif).Path }   # relative: to where it was started from
+if (-not $Tag) { $Tag = (Split-Path $Root -Leaf) + $(if ($Look) { "-$Look" }) + $(if ($Gif) { '-gif' }) }   # each look's runs apart, the GIF's too
 if (-not $Out) { $Out = Join-Path $repo "build\checks\$Tag" }
 $Out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Out)
 $gen = Join-Path $repo "build\checks\gen\$Tag-$Mode"
@@ -65,6 +70,8 @@ OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))
 
 "@
 if ($Look) { $head += 'DirCreate(DATA_DIR), IniWrite("' + $Look + '", DATA_DIR "\settings.ini", "settings", "PANE_LOOK")' + "`n" }
+if ($Gif) { $head += 'GIF_ALL := "' + $Gif + '"' + "`n" }   # lib.ahk's Stage loads it for every mood
+if ($Effects) { $head += 'ANIM_EFFECTS := ' + $(if ($Effects -eq 'on') { 'true' } else { 'false' }) + "`n" }
 $sayLook = 'FileAppend("look: " (IsSet(PANE_LOOK) ? PANE_LOOK : "windows11 (no PANE_LOOK in this source)") "`n", "*")' + "`n"
 
 $runs = New-Object 'System.Collections.Generic.List[string[]]'   # one argument list per AutoHotkey process
@@ -138,7 +145,7 @@ else {
 
 $wrapper = Join-Path $gen "$Mode.ahk"
 [IO.File]::WriteAllText($wrapper, $head + $main, $utf8)
-Write-Host "run: $Mode on $Root, look: $(if ($Look) { $Look } else { "the app's default" })`nwrapper: $wrapper`nout: $Out"
+Write-Host "run: $Mode on $Root, look: $(if ($Look) { $Look } else { "the app's default" })$(if ($Gif) { ", every mood: $Gif" })`nwrapper: $wrapper`nout: $Out"
 if (-not (Test-Path -LiteralPath $wrapper)) { throw "no wrapper at $wrapper" }
 $ErrorActionPreference = 'Continue'
 $worst = 0

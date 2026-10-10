@@ -10,6 +10,13 @@ MeowTab replaces Alt+Tab with a switcher in the style of the one built into Wind
 ![MeowTab in the Windows 11 look](docs/meowtab-windows11.png)
 *Windows 11*
 
+### A GIF in the peek
+
+![MeowTab with an animated cat peeking over the pane](docs/meowtab-gif.gif)
+
+Any mood can have a GIF picked for it, and it plays in the peek.
+MeowTab ships one, `chill.gif`, in its `images` folder (the PNG cats stay the default).
+
 > **Status: early preview (0.1).** MeowTab grew out of [peek-alttab](https://github.com/tingtmu/peek-alttab) and is being polished into a full app; see the [roadmap](ROADMAP.md).
 
 ## Contents
@@ -53,6 +60,8 @@ MeowTab replaces Alt+Tab with a switcher in the style of the one built into Wind
   | few | 1-2 | a cat curled up asleep |
   | some | 3-7 | a cat lounging |
   | many | 8+ | a cat sprawled belly up, too tired to care... |
+
+  A GIF plays in the peek in both looks, Velvet and Windows 11. It shows still, as its first frame, when Windows' Animation effects are off.
 
 - **Your own pictures.** Pick or drop them in the settings panel. **Clean background** cuts out a plain light background and crops to a square, built in.
 - **Keyboard and mouse.** Tab and the arrow keys move through the grid (Up and Down change rows), Delete closes a window and keeps the switcher open, Esc cancels. Hover a tile for its close button; click a tile to switch to it.
@@ -165,11 +174,11 @@ Double-click the tray icon, or right-click it and choose **Settings…**. The de
 
 ![Settings panel](docs/settings.png)
 
-- **Mood images.** One card per mood. Click a card to choose a picture (PNG, JPG, BMP or GIF), or drag a file onto it. The `−  3  +` steppers set where "some" and "many" start.
-- **Clean background** (`✧ Clean`, on a card with your own picture) removes a plain light background and crops the picture to a square.
+- **Mood images.** One card per mood. Click a card to choose a picture (PNG, JPG, BMP or GIF), or drag a file onto it. The picker opens in MeowTab's `images` folder, where the cats are: `chill.gif` and the `chill_*.png` set. A GIF plays on its card and in the peek scene that shows it. The `−  3  +` steppers set where "some" and "many" start.
+- **Clean background** (`✧ Clean`, on a card with your own picture) removes a plain light background and crops the picture to a square. A GIF is cleaned frame by frame and cropped to one square for all its frames, with hard edges, as a GIF has no soft transparency.
 - **Peek height.** How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes preview it with your own pictures.
 - **Look.** Two cards, **Velvet** (softer and warmer up close: warm glass, rounder tiles, a lifted selection) and **Windows 11** (as Windows draws it), each a small picture of the switcher in that look, in your Windows mode and accent colour. Click a card, or press Space on it, to pick it: a check marks the picked look, and **in use** the one MeowTab has now. The peek scenes and the title sample show the picked look at once, and **Save** applies it. `meowtab-classic` has no Look section.
-  Velvet's motion (the pane easing in, the selection gliding, the picture settling with a small bounce) follows Windows' **Animation effects** setting (Settings > Accessibility > Visual effects): with it off, nothing moves.
+  Velvet's motion (the pane easing in, the selection gliding, the picture settling with a small bounce) follows Windows' **Animation effects** setting (Settings > Accessibility > Visual effects): with it off, nothing moves. A GIF in the peek, in both looks, and on the panel's cards follows the same setting: with it off, it shows its first frame, still.
 - **Title font.** Any installed font, at 10 to 24 pt.
 - **Shortcuts.** Click **Switch windows** or **Stay open**, then press the new combination; **Esc** keeps the old one. Switching takes Alt, Ctrl or Win with one key, and the same with Shift goes back (shown under it). A combination that can't work, such as one with Esc or the arrows or one already in use, is refused, and the line under the cards says why. **Defaults** puts back Alt+Tab and Ctrl+Alt+Tab. `meowtab-classic` has no Shortcuts section.
 
@@ -181,9 +190,9 @@ The panel is built when you open it and freed when you close it, so it never slo
 
 ## Use your own pictures
 
-The settings panel is the easy way. Your pictures are copied into `%APPDATA%\MeowTab\images\` as `custom_few.png`, `custom_some.png` and `custom_many.png`; the shipped `chill_*` cats are never overwritten. Large pictures are scaled down to 1024 px and photos are turned upright.
+The settings panel is the easy way. Your pictures are copied into `%APPDATA%\MeowTab\images\` as `custom_few.png`, `custom_some.png` and `custom_many.png`; the shipped `chill_*` cats are never overwritten. Large pictures are scaled down to 1024 px and photos are turned upright. An animated GIF keeps moving and is saved as `custom_<mood>.gif`: one larger than 512 px is scaled down to 512 px, and one with more than 100 frames is refused.
 
-By hand: put three PNGs in `%APPDATA%\MeowTab\images\` named `<prefix>_few.png`, `<prefix>_some.png` and `<prefix>_many.png`, set `IMG_PREFIX=<prefix>` in `settings.ini`, then **Reload Script** from the tray menu.
+By hand: put three PNGs or GIFs in `%APPDATA%\MeowTab\images\` named `<prefix>_few.png`, `<prefix>_some.png` and `<prefix>_many.png` (or `.gif`; a `.gif` wins over a `.png` of the same name, and plays at most its first 100 frames), set `IMG_PREFIX=<prefix>` in `settings.ini`, then **Reload Script** from the tray menu.
 
 Tips:
 
@@ -210,15 +219,15 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 | --- | --- | --- | --- | --- |
 | `FONT_NAME` | Noto Sans TC (else Segoe UI) | both | panel | Title font (classic: list font). |
 | `FONT_SIZE` | `10` / `16` | main / classic | panel | Text size in points (10-24). |
-| `IMG_PREFIX` | `chill` | both | panel | Pictures are `<prefix>_few.png`, `_some.png`, `_many.png`. The panel uses `custom`. |
+| `IMG_PREFIX` | `chill` | both | panel | Pictures are `<prefix>_few.png`, `_some.png`, `_many.png`, or `.gif` for any of them. The panel uses `custom`. |
 | `SOME_FROM` | `3` | both | panel | Fewest windows that count as "some". |
 | `MANY_FROM` | `8` | both | panel | Fewest windows that count as "many" (2 ≤ `SOME_FROM` < `MANY_FROM` ≤ 30). |
-| `PEEK_MIN` | `0.72` | main | panel | Share of the picture shown above the pane with 1 window. |
+| `PEEK_MIN` | `0.80` | main | panel | Share of the picture shown above the pane with 1 window. |
 | `PEEK_MAX` | `0.95` | main | panel | Share shown at `MANY_FROM + 4` windows and beyond (0.30-1.00, above `PEEK_MIN`). |
 | `SWITCH_KEYS` | `Alt+Tab` | main | panel | The switcher's shortcut: Alt, Ctrl or Win held with one key; with Shift it goes back. |
 | `STAY_KEYS` | `Ctrl+Alt+Tab` | main | panel | Opens the switcher that stays open once you let go. |
 | `PANE_LOOK` | `velvet` | main | panel | The switcher's look: `velvet` or `windows11`. |
-| `IMG_SIZE` | `250` / `100` | main / classic | ini | Picture size in pixels. |
+| `IMG_SIZE` | `250` / `100` | main / classic | ini | Picture size in pixels. Each GIF frame is kept decoded, so long GIFs on every mood take about 75 MB at the default 250 and about 430 MB at the maximum 600 (three 100-frame GIFs). |
 | `WM_PROCESS` | empty | both | ini | Exit when this process is gone, e.g. `glazewm.exe`. |
 | `LIST_WIDTH` | `700` | classic | ini | List width in pixels. |
 | `MAX_ROWS` | `15` | classic | ini | Longer lists scroll. |
@@ -252,7 +261,7 @@ For the curious, all in AutoHotkey v2 with plain Win32 calls:
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
-It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\meowtab\` and `dist\meowtab.zip`, which holds only the two exes, the `chill_*` pictures, this README and the license.
+It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path to AutoHotkey64.exe>`). The compiler, Ahk2Exe, comes from `-Ahk2Exe <path>`, the `AHK2EXE` environment variable or AutoHotkey's `Compiler` folder; failing those, the latest [Ahk2Exe release](https://github.com/AutoHotkey/Ahk2Exe/releases) is downloaded into `build\` (nothing is installed). The result is `dist\meowtab\` and `dist\meowtab.zip`, which holds only the two exes, the three `chill_*.png` pictures, `images\chill.gif` (the shipped animated cat), this README and the license.
 
 **Clean background** is C (`cutout.c`) compiled to machine code stored in `cutout-mcode.ahk`, so neither the scripts nor the exes need a compiler. `build-mcode.ps1` regenerates it from `cutout.c` with a pinned, hash-checked [Zig](https://ziglang.org); run it after editing `cutout.c`. CI checks the file is up to date.
 

@@ -70,8 +70,8 @@ foreach ($name in $scripts) {
     if ($p.ExitCode -ne 0 -or -not (Test-Path $out)) { throw "Compiling $name.ahk failed (exit code $($p.ExitCode))." }
 }
 
-# Only the shipped placeholder images: never the user's own (custom_*) or a local settings.ini
-Copy-Item (Join-Path $root 'images\chill_*.png') (Join-Path $stage 'images')
+# Only the shipped placeholder images and the GIF cat: never the user's own (custom_*) or a local settings.ini
+Copy-Item (Join-Path $root 'images\chill_*.png'), (Join-Path $root 'images\chill.gif') (Join-Path $stage 'images')
 Copy-Item (Join-Path $root 'README.md'), (Join-Path $root 'LICENSE') $stage
 
 # Entries added one by one: Windows PowerShell 5.1's Compress-Archive and CreateFromDirectory write
@@ -88,7 +88,7 @@ try {
 } finally { $zip.Dispose() }
 
 # Fail on anything outside the allowlist, so a private file can never reach a release
-$allowed = '^meowtab/((meowtab|meowtab-classic)\.exe|images/chill_[^/]+\.png|README\.md|LICENSE)$'
+$allowed = '^meowtab/((meowtab|meowtab-classic)\.exe|images/chill_[^/]+\.png|images/chill\.gif|README\.md|LICENSE)$'
 $zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
 try { $bad = @($zip.Entries.FullName | Where-Object { $_ -notmatch $allowed }) } finally { $zip.Dispose() }
 if ($bad) { throw "Unexpected files in the zip: $($bad -join ', ')" }

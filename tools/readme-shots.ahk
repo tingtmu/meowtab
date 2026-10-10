@@ -8,6 +8,9 @@
 ;     [windows]: how many demo windows to list (default 5; 12 and more reach PEEK_MAX).
 ;     [look]: the pane's look, velvet or windows11 (default: the app's default look).
 ;     [tint]: Velvet's tint alpha for this shot, 0-255, in place of the palette's (its colour stays): to compare strengths.
+;   hold: light's pane on 2 demo windows with the shipped images\chill.gif as the "few" picture, playing (as with Windows'
+;     Animation effects on), held open <seconds> for a screen recording (docs\meowtab-gif.gif) instead of captured: prints
+;     the crop, about 960 px wide, and reports a window that isn't ours in it, also one that shows up while it holds.
 ;   settings: the settings panel alone (its own pixels), with default settings: it runs on an empty temporary data
 ;     folder, so the user's own settings.ini is neither read nor written. The panel gets its whole content height, every
 ;     section with no scroll bar, also where that's taller than the screen: it's raised until all of it has been on the
@@ -15,6 +18,7 @@
 ;     on a 150 % display.
 ; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint]
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk settings <out.png>
+;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk hold <seconds 1-100>
 ; (default out: docs\meowtab.png / docs\meowtab-dark.png). Keep hands off the mouse and keyboard for ~5 s.
 DATA_DIR := A_Temp "\meowtab-shots-" A_TickCount   ; a new, empty data folder: default settings, and the user's own are never read or changed
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))
@@ -29,14 +33,18 @@ if A_Args.Length > 4                               ; the tint: Velvet's palettes
     , VELVET_DARK := VELVET_DARK.Clone(), VELVET_DARK.tint := [VELVET_DARK.tint[1], Integer(A_Args[5])]
 
 REPO := RegExReplace(A_LineFile, "\\[^\\]+\\[^\\]+$")   ; the folder above tools\
-global imgs := [], spans := []                 ; the include looked for the pictures next to this script: load the repo's
+global imgs := [], delays := [], spans := []   ; the include looked for the pictures next to this script: load the repo's
 for mood in ["few", "some", "many"]
-    imgs.Push(ScaledBitmap(REPO "\" IMG_DIR "\" IMG_PREFIX "_" mood ".png", IMG_SIZE, &span)), spans.Push(span)
+    imgs.Push(GifStrip(REPO "\" IMG_DIR "\" IMG_PREFIX "_" mood ".png", IMG_SIZE, &span, &frameMs)), delays.Push(frameMs), spans.Push(span)
 SetTimer(() => ExitApp(2), -120000)            ; a stuck run must not leave a stand-in wallpaper over the screen
 
 which := A_Args.Length ? A_Args[1] : "light"
 if which = "settings" && A_Args.Length < 2     ; no default out: the shot in docs\ is framed on a 150 % display
     FileAppend("usage: readme-shots.ahk settings <out.png>`n", "*"), ExitApp(1)
+if which = "hold" && !(A_Args.Length > 1 && IsInteger(A_Args[2]) && A_Args[2] >= 1 && A_Args[2] <= 100)   ; inside the safety exit
+    FileAppend("usage: readme-shots.ahk hold <seconds 1-100>`n", "*"), ExitApp(1)
+if which = "hold"                                 ; the GIF cat as the few picture, playing: Animation effects on, through the app's seam
+    imgs[1] := GifStrip(REPO "\" IMG_DIR "\chill.gif", IMG_SIZE, &span, &frameMs), delays[1] := frameMs, spans[1] := span, ANIM_EFFECTS := true
 out := A_Args.Length > 1 ? A_Args[2] : REPO "\docs\meowtab" (which = "dark" ? "-dark" : "") ".png"
 if !RegExMatch(out, "^([A-Za-z]:)?\\")         ; relative: to where it was started from
     out := A_InitialWorkingDir "\" out
@@ -48,7 +56,7 @@ DEMO := [["Trip plan — 旅行計畫.md", 1500, 950, "1E1E1E", "3C3C3C", "shell
     , ["收件匣 Inbox", 1400, 900, "FFFFFF", "0F6CBD", "shell32.dll", 157, "lines"]
     , ["Terminal", 1200, 700, "0C0C0C", "1F1F1F", "imageres.dll", 312, "term"]]
 made := []
-Loop A_Args.Length > 2 ? Max(Integer(A_Args[3]), 1) : DEMO.Length {   ; more than the specs: cycle through them, titles numbered
+Loop which = "hold" ? 2 : A_Args.Length > 2 ? Max(Integer(A_Args[3]), 1) : DEMO.Length {   ; more than the specs: cycle through them, titles numbered
     spec := DEMO[Mod(A_Index - 1, DEMO.Length) + 1], lap := (A_Index - 1) // DEMO.Length
     made.Push(DemoWindow(spec, spec[1] (lap ? " (" lap + 1 ")" : "")))
 }
@@ -65,11 +73,16 @@ Sleep 700                                          ; first the open's own hover 
 hover := dark ? 3 : 0, hoverX := false, mouseAt := 0, Render(surf), Present()   ; dark: the hover look on tile 3 (the selection is tile 2); light: none
 Sleep(100), DllCall("dwmapi\DwmFlush")
 g.GetPos(&px, &py, &pw, &ph), WinGetPos(&kx, &ky, &kw, &kh, peek.Hwnd)
-x0 := Max(px - 48, ml), y0 := Max(Min(ky, py) - 32, mt)   ; crop to the pane, the picture and a margin, inside that monitor
-x1 := Min(px + pw + 48, mr), y1 := Min(py + ph + 48, mb)
-if (foreign := ForeignAbove(wall.Hwnd, x0, y0, x1, y1)) = ""
+side := which = "hold" ? Max(48, (960 - pw) // 2) : 48   ; hold: wider, about 960 px
+x0 := Max(px - side, ml), y0 := Max(Min(ky, py) - 32, mt)   ; crop to the pane, the picture and a margin, inside that monitor
+x1 := Min(px + pw + side, mr), y1 := Min(py + ph + 48, mb)
+if (foreign := ForeignAbove(wall.Hwnd, x0, y0, x1, y1)) = "" && which = "hold" {   ; recorded from outside: the crop, then held
+    FileAppend "hold " x1 - x0 "x" y1 - y0 " at " x0 "," y0 " for " A_Args[2] " s`n", "*"
+    Loop A_Args[2] * 4                             ; watched meanwhile: the first window that isn't ours is reported
+        Sleep(250), foreign := foreign || ForeignAbove(wall.Hwnd, x0, y0, x1, y1)
+} else if foreign = ""
     Capture(x0, y0, x1 - x0, y1 - y0, out)
-else
+if foreign != ""
     FileAppend "not captured, a window that isn't ours is above the stand-in wallpaper in the crop: " foreign "`n", "*"
 Finish(false)
 for win in made

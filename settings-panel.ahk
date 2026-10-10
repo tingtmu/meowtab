@@ -6,9 +6,11 @@
 ; never waits on it. Values go to settings.ini (settings-store.ahk); Save reloads the script to apply them.
 
 #Include %A_LineFile%\..\gdip-helpers.ahk
+#Include %A_LineFile%\..\gif.ahk
 #Include %A_LineFile%\..\settings-store.ahk
 #Include %A_LineFile%\..\settings-paint.ahk
 #Include %A_LineFile%\..\cutout.ahk
+#Include %A_LineFile%\..\cutout-gif.ahk
 #Include %A_LineFile%\..\desktop-icon.ahk
 
 ; The panel's palette (the warm ivory of the original glass switcher), one restrained accent.
@@ -16,6 +18,7 @@ global LOOK := {bgTop: "FCF9F4", bg: "FAF6EF", bgBot: "F5EEE2", card: "FDFBF7", 
     , text: "181614", muted: "6B6154", soft: "8C8174", faint: "D8CEBF", pill: "D6E6F2", pillRim: "BFD5E6"
     , pillHi: "EEF5FA", accent: "6F93B6", shadow: "78350F", wellTop: "EFE6D6", wellBot: "F8F2E7", face: "Segoe UI"}
 global pnl := 0                                       ; the open panel's state; 0 = closed
+global pnlPlay := false                               ; the cards' GIFs are playing (PanelPlay's timer runs); a test reads it
 OnExit((*) => (PanelClose(), 0))                      ; exit or reload (Save) with it open: closed first, before the globals its
                                                       ; message handlers read are freed (else each repaint is an error dialog)
 A_TrayMenu.Insert("1&", "Settings…", SettingsOpen)
@@ -75,7 +78,8 @@ PanelLayout(w) {
     pad := Dpx(28), gap := Dpx(16), cw := (w - 2 * pad - 2 * gap) // 3, y := Dpx(20)
     pnl.labels.Push(["MOOD IMAGES", pad, y]), y += Dpx(26)
     for i, mood in Moods() {   ; few starts at 1; some and many get a "starts at" stepper
-        x := pad + (i - 1) * (cw + gap), c := {mood: mood, thumb: 0, big: 0, span: [0, 1], busy: false, pending: false}
+        x := pad + (i - 1) * (cw + gap), c := {mood: mood, thumb: 0, big: 0, span: [0, 1], busy: false, pending: false
+            , delays: [100], f: 0, t0: 0, scene: 0}   ; its frames' ms, the one shown, when it loaded (PanelFrame); its peek scene
         pnl.frames.Push([x, y, cw, Dpx(232)])
         c.card := PanelAdd("card", x + Dpx(8), y + Dpx(8), cw - Dpx(16), Dpx(182), PaintCard.Bind(i)
             , "Click to choose the picture for “" MOOD_NOTES[i] "”, or drop one here.", PanelPick.Bind(i))
@@ -113,11 +117,11 @@ PanelLayoutBar(w, y) {   ; the bottom bar from y down, pnl.bh tall: the hint lin
     PanelAdd("button", w - pad - Dpx(100), y, Dpx(100), Dpx(34), PaintButton.Bind("Save", 2), "Save and apply (Enter).", PanelSave)
 }
 
-PanelLayoutPeek(w, pad, gap, y) {   ; two scenes (1 window, many windows), a slider under each
+PanelLayoutPeek(w, pad, gap, y) {   ; two scenes (1 window, many windows: the few and many cards' pictures), a slider under each
     pnl.labels.Push(["PEEK HEIGHT", pad, y]), y += Dpx(26), sw := (w - 2 * pad - gap) // 2
     for j in [1, 2] {
         x := pad + (j - 1) * (sw + gap)
-        PanelAdd("scene", x, y, sw, Dpx(132), PaintScene.Bind(j))
+        pnl.cards[j = 1 ? 1 : 3].scene := PanelAdd("scene", x, y, sw, Dpx(132), PaintScene.Bind(j))
         PanelAdd("slider", x, y + Dpx(134), sw, Dpx(28), PaintSlider.Bind(j), j = 1
             ? "How much of the picture shows above the pane with a single window."
             : "How much shows once the window count reaches many (and beyond).").j := j
@@ -256,9 +260,10 @@ PanelHook(on) {   ; message handlers exist only while the panel is open
 }
 
 PanelClose(*) {
-    global pnl
+    global pnl, pnlPlay
     if !pnl
         return
+    SetTimer(PanelFrame, 0), pnlPlay := false
     PanelCaptureEnd(), CutoutCancel(), PanelHook(false), pnl.page.Destroy(), pnl.view.Destroy(), pnl.gui.Destroy(), PendingClear()
     for c in pnl.cards
         for b in [c.thumb, c.big]
@@ -502,11 +507,11 @@ PanelLook(lk, name, ctl, *) {   ; a LOOK card clicked (or Space): its look is pi
     PanelNote(lk = SettingsGet("PANE_LOOK") ? "" : name " picked. Save to use it."), pnl.held := ctl.Hwnd
 }
 
-PanelPick(i, *) {   ; card click: file picker
+PanelPick(i, *) {   ; card click: file picker, opened where the cats are (the app's images folder)
     pnl.gui.Opt("+OwnDialogs")
     if pnl.cards[i].busy
         return
-    f := FileSelect(1, , "Choose the picture for “" MOOD_NOTES[i] "”", "Pictures (*.png; *.jpg; *.jpeg; *.bmp; *.gif)")
+    f := FileSelect(1, A_ScriptDir "\" IMG_DIR, "Choose the picture for “" MOOD_NOTES[i] "”", "Pictures (*.png; *.jpg; *.jpeg; *.bmp; *.gif)")
     if f != "" && pnl
         PanelImport(i, f)
 }
@@ -519,28 +524,63 @@ PanelDrop(gui, ctl, files, x, y) {   ; a file dropped on the page (x, y on it, h
     PanelNote("Drop the picture onto one of the three cards.")
 }
 
-PanelImport(i, file) {   ; the picture becomes this card's pending one (images\custom_<mood>.pending.png)
+PanelImport(i, file) {   ; the picture becomes this card's pending one (images\custom_<mood>.pending.png or .gif)
     if why := ImportImage(file, PendingImage(Moods()[i]))
         return PanelNote("That file didn't work: " why ".")
     pnl.dirty := true, PanelLoadCard(i)
     PanelNote("New picture for “" MOOD_NOTES[i] "”. Save to use it, or clean its background first.")
 }
 
-; (Re)load card i's picture: the pending one, else the current set's. Peek also keeps it at IMG_SIZE with
-; its art span (ArtSpan, as the switcher measures it) for the peek scenes.
+; (Re)load card i's picture: the pending one, else the current set's. Peek keeps all its frames, as strips (GifStrip): at the
+; card's size, and at IMG_SIZE with its art span over all frames (as the switcher measures it) for the peek scenes; the card's
+; clock starts again from its first frame (PanelFrame). Classic shows a GIF still: its first frame (FitBitmap).
 PanelLoadCard(i) {
     c := pnl.cards[i], old := [c.thumb, c.big]
     pending := FileExist(PendingImage(c.mood)) != ""
     file := pending ? PendingImage(c.mood) : MoodImage(IMG_PREFIX, c.mood)
-    thumb := FitBitmap(file, Dpx(112)), big := pnl.peek ? FitBitmap(file, IMG_SIZE) : 0
-    span := big ? ArtSpan(big, IMG_SIZE) : [0, 1]
+    delays := [100], span := [0, 1], big := 0
+    if pnl.peek
+        thumb := GifStrip(file, Dpx(112), , &delays, true), big := GifStrip(file, IMG_SIZE, &span, , true)
+    else
+        thumb := FitBitmap(file, Dpx(112))
     Critical                                          ; a paint may interrupt between lines: swap, then free
-    c.pending := pending, c.file := file, c.thumb := thumb, c.big := big, c.span := span
+    c.pending := pending, c.file := file, c.thumb := thumb, c.big := big, c.span := span, c.delays := delays, c.f := 0, c.t0 := A_TickCount
     Critical "Off"
     for b in old
         if b
             DllCall("gdiplus\GdipDisposeImage", "ptr", b)
-    PanelChips(), PanelRedraw("card", "scene", "hint")
+    PanelChips(), PanelPlay(), PanelRedraw("card", "scene", "hint")
+}
+
+; The cards' GIFs play while the panel is open: in MeowTab only (the peek scenes'), with Windows' "Animation effects" on (read
+; now, as the switcher reads it at an open: Animates), and only while a card has more than one frame. One timer for all cards.
+PanelPlay() {
+    global pnlPlay
+    on := false
+    if pnl.peek && SettingsGet("Animates")()          ; by name: Classic has no Animates, and a plain call would keep it from loading
+        for c in pnl.cards
+            on := on || c.delays.Length > 1
+    if on || pnlPlay
+        SetTimer(PanelFrame, on ? 30 : 0)
+    pnlPlay := on
+}
+
+; Each playing card's frame from the time since it loaded (its delays over and over). A card whose frame changed is drawn
+; again, and the peek scene that shows it; nothing else.
+PanelFrame() {
+    Critical                                          ; the panel's close waits: it destroys what this draws
+    for c in pnl.cards {
+        if c.delays.Length < 2
+            continue
+        n := 0
+        for d in c.delays
+            n += d
+        t := Mod(A_TickCount - c.t0, n), f := 0
+        while t >= c.delays[f + 1]
+            t -= c.delays[++f]
+        if f != c.f
+            c.f := f, PanelInvalidate(c.card.ctl.Hwnd), c.scene && PanelInvalidate(c.scene.ctl.Hwnd)
+    }
 }
 
 PanelChips() {   ; "Clean" shows on cards with the user's own picture
@@ -548,10 +588,12 @@ PanelChips() {   ; "Clean" shows on cards with the user's own picture
         c.clean.ctl.Visible := c.thumb && (c.pending || IMG_PREFIX = "custom")
 }
 
-PanelClean(i, *) {   ; cutout.ahk on the card's working copy (made from the live picture if needed), async
-    c := pnl.cards[i], pend := PendingImage(c.mood)
+PanelClean(i, *) {   ; cutout.ahk on the card's working copy (made from the live picture if needed), async; a GIF frame by frame
+    c := pnl.cards[i], gif := c.file ~= "i)\.gif$", pend := PendingImage(c.mood)
     if c.busy
         return
+    if gif                                            ; a GIF stays one: its working copy is the .pending.gif
+        pend := RegExReplace(pend, "png$", "gif")
     made := !c.pending
     if made
         try {
@@ -561,7 +603,8 @@ PanelClean(i, *) {   ; cutout.ahk on the card's working copy (made from the live
             return PanelNote("Couldn't prepare the picture (" e.Message ").")
     c.busy := true, c.clean.ctl.Enabled := false, PanelRedraw("card", "chip")
     PanelNote("Cleaning “" MOOD_NOTES[i] "”…")
-    CutoutRun(pend, PanelCleaned.Bind(i, made))
+    cut := gif ? CutoutGifRun : CutoutRun             ; the card stays veiled ("cleaning…") until done
+    cut(pend, PanelCleaned.Bind(i, made))
 }
 
 PanelCleaned(i, made, r) {

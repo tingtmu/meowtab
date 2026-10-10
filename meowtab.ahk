@@ -19,7 +19,7 @@ IMG_PREFIX := "chill" ; mood images in %APPDATA%\MeowTab\images, else IMG_DIR: <
 SOME_FROM  := 3       ; window counts: few = 1 .. SOME_FROM-1, some = SOME_FROM .. MANY_FROM-1,
 MANY_FROM  := 8       ; many = MANY_FROM and up (2 <= SOME_FROM < MANY_FROM <= 30)
 IMG_SIZE   := 250     ; image peeking over the pane's top-left edge, in pixels
-PEEK_MIN   := 0.72    ; share of the image's art (transparent padding ignored) above the pane at 1 window,
+PEEK_MIN   := 0.80    ; share of the image's art (transparent padding ignored) above the pane at 1 window,
 PEEK_MAX   := 0.95    ; rising evenly to this at MANY_FROM + 4 windows and beyond (0.30 .. 1.00)
 WM_PROCESS := ""      ; optional: script exits when this process is gone, e.g. "glazewm.exe" ("" = never)
 SWITCH_KEYS := "Alt+Tab"      ; Win, Ctrl or Alt held + a key: opens the pane, moves on (with Shift: back); let go to switch
@@ -111,9 +111,9 @@ DllCall("LoadLibrary", "str", "gdiplus")
 si := Buffer(24, 0), NumPut("uint", 1, si)   ; GdiplusStartupInput
 global gdipToken := 0                        ; GDI+ stays up: every open draws with it
 DllCall("gdiplus\GdiplusStartup", "ptr*", &gdipToken, "ptr", si, "ptr", 0)
-global imgs := [], spans := []                 ; mood images (few / some / many; 0 = none); spans: [top, bottom] rows of their art
-for mood in ["few", "some", "many"]
-    imgs.Push(ScaledBitmap(MoodImage(IMG_PREFIX, mood), IMG_SIZE, &span)), spans.Push(span)
+global imgs := [], delays := [], spans := []   ; mood images (few / some / many; 0 = none): each its frames in one strip (GifStrip),
+for mood in ["few", "some", "many"]            ; a still one's 1; delays: each frame's ms; spans: [top, bottom] rows of the art, all frames
+    imgs.Push(GifStrip(MoodImage(IMG_PREFIX, mood), IMG_SIZE, &span, &frameMs)), delays.Push(frameMs), spans.Push(span)
 MOOD_NOTES := ["cozy ♡", "nice ✌", "too many…"]  ; the moods' names in the Settings panel, same order as imgs
 global titleFont := 0, titleFmt := 0, titleLineH := 0   ; tile titles (TitleInit): font, one-line format, line height in px
 TitleInit()
@@ -133,6 +133,7 @@ OnMessage(0x1A, ThemeChanged)                ; WM_SETTINGCHANGE: light / dark mo
 global peek := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08080020")
 global peekDC := DllCall("CreateCompatibleDC", "ptr", 0, "ptr")   ; holds the shown image for UpdateLayeredWindow
 global peekK := 0, peekN := 0, peekFrom := 0, peekGoal := 0, peekT := 0, peekX := 0, peekEdge := 0   ; see PeekTo
+global peekF := 0, peekPlay := false           ; the shown frame of image peekK, and whether a GIF is playing (PeekFrame armed)
 SetTimer WarmUp, -200                        ; once startup is done: GDI+'s cold start, off the first Alt+Tab
 global sticky := false                       ; opened by the stay-open shortcut (Stay): no held key ends it
 global stayIH := InputHook("L0 I")           ; meanwhile it blocks every key but the modifiers (L0: keeps no text, no length limit); the

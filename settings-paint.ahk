@@ -97,7 +97,7 @@ PaintThumb(dc) {   ; the scroll bar's thumb on the page, where the view shows it
 
 ; ----- Element painters: (dc, w, h, st); dc already holds the surface beneath. st: ODS_* | 0x10000 hovered -----
 
-PaintCard(i, dc, w, h, st) {   ; picture well, caption, window range
+PaintCard(i, dc, w, h, st) {   ; picture well (its strip's frame c.f), caption, window range
     c := pnl.cards[i], wh := Dpx(134), r := Dpx(12), hov := st & 0x10000, t := Dpx(112)
     gr := Canvas(0, dc), path := RoundPath(0.5, 0.5, w - 1, wh - 1, r)
     br := FadeBrush(0, 0, w, wh, 90, hov ? [[LOOK.pillHi, 255, 0], [LOOK.pill, 150, 1]] : [[LOOK.wellTop, 140, 0], [LOOK.wellBot, 80, 1]])
@@ -107,7 +107,8 @@ PaintCard(i, dc, w, h, st) {   ; picture well, caption, window range
     FocusRing(gr, w, wh, r, st)
     if c.thumb {
         DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 7)
-        DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", c.thumb, "int", (w - t) // 2, "int", (wh - t) // 2, "int", t, "int", t)
+        DllCall("gdiplus\GdipDrawImageRectRectI", "ptr", gr, "ptr", c.thumb, "int", (w - t) // 2, "int", (wh - t) // 2, "int", t, "int", t
+            , "int", 0, "int", c.f * t, "int", t, "int", t, "int", 2, "ptr", 0, "ptr", 0, "ptr", 0)   ; UnitPixel
     }
     if c.busy                                         ; veil while the cleaning runs
         FillRound(gr, 1, 1, w - 2, wh - 2, r, Argb("FFFFFF", 165))
@@ -234,8 +235,8 @@ PaintLook(lk, name, sub, dc, w, h, st) {
 }
 
 ; Peek scene j (1 = a single window at PEEK_MIN, 2 = many windows at PEEK_MAX): the picture behind the top
-; edge of a small pane, raised by the same rule as ShowPeek (share of the ArtSpan rows above the edge). The
-; pane is the switcher's in the picked look (MiniPane): its first tiles in a row, the first one selected.
+; edge of a small pane, raised by the same rule as ShowPeek (share of the ArtSpan rows above the edge), its card's
+; frame c.f. The pane is the switcher's in the picked look (MiniPane): its first tiles in a row, the first one selected.
 PaintScene(j, dc, w, h, st) {
     c := pnl.cards[j = 1 ? 1 : 3], share := pnl.peek[j] / 100, lab := Dpx(24), sh := h - lab, r := Dpx(12)
     edge := sh - Dpx(42), d := Dpx(72), f := d / IMG_SIZE, px := Dpx(22)
@@ -245,8 +246,13 @@ PaintScene(j, dc, w, h, st) {
     DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", well, "int", 0)
     if c.big {
         DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 7)
-        top := edge - Round((c.span[1] + (c.span[2] - c.span[1]) * share) * f)
-        DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", c.big, "int", px + Dpx(12), "int", top, "int", d, "int", d)
+        top := edge - Round((c.span[1] + (c.span[2] - c.span[1]) * share) * f), one := c.big
+        if c.delays.Length > 1                        ; the frame alone: scaled in the strip, it would pick up the one above's last rows
+            DllCall("gdiplus\GdipCloneBitmapAreaI", "int", 0, "int", c.f * IMG_SIZE, "int", IMG_SIZE, "int", IMG_SIZE, "int", 0x26200A, "ptr", c.big, "ptr*", &one)
+        DllCall("gdiplus\GdipDrawImageRectRectI", "ptr", gr, "ptr", one, "int", px + Dpx(12), "int", top, "int", d, "int", d
+            , "int", 0, "int", 0, "int", IMG_SIZE, "int", IMG_SIZE, "int", 2, "ptr", 0, "ptr", 0, "ptr", 0)   ; UnitPixel
+        if one != c.big
+            DllCall("gdiplus\GdipDisposeImage", "ptr", one)
     }
     tiles := []                                       ; the pane's top-left corner; the well clips the rest (the tiles' feet too)
     for k in [0, 1, 2]
