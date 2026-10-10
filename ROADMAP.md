@@ -110,6 +110,28 @@ Production notes:
 
 **Done when:** a downloadable Mac preview works on the documented hardware and macOS versions; switching, permissions and picture placement have been checked on a real Mac; and its setup instructions and demo captures are ready, following the same privacy rules as Windows.
 
+## 9. Animated GIF pictures
+
+**Today:** the settings panel's picture cards already accept a GIF, but the import keeps only its first frame and saves it as a PNG (`ImportImage` in `settings-store.ahk`), so a moving cat becomes a still one.
+
+**Plan:**
+
+- **Keep it moving.** A GIF picked for a mood is kept as a GIF, and the peeking picture plays its frames, with their own timing and looping, while the pane is open. PNG, JPG and BMP work as before, and a set can mix GIFs and still pictures.
+- **Ship a GIF cat.** `images/chill.gif` (the author's art: 8 frames, about 1.8 s per loop, transparent background) ships in the release beside the PNG cats, ready to pick for any mood. The default set stays the three PNGs, never overwritten or removed: users can have both.
+- **Fast and light.** Decode and scale the frames once, when the pictures load, never per frame. The animation runs only while the pane is open, so item 4's budgets hold (open ≤ 30 ms; while closed, no timers and 0 % CPU).
+- **The peek stays whole.** Measure the art's span over all frames, so the cat keeps its place and is never cut as it moves.
+- **Follow the motion setting.** With Windows' "Animation effects" off, a GIF shows its first frame, like Velvet's motion.
+- **A second demo GIF.** A short looping capture of the pane with chill.gif peeking, recorded like item 6's (demo windows over a stand-in wallpaper, ffmpeg, about 960 px wide). In the README it sits below item 6's demo GIF, under a short section saying a GIF can be uploaded and plays in the peek.
+
+**To decide in the proposal:** how a user picks the shipped chill.gif for a mood; whether it ships at full size (1254 px, 4.2 MB) or scaled to 512 px like the PNGs; whether the settings panel's cards play the GIF or show its first frame; what "clean its background" does to a GIF; what the classic switcher shows (it reads the same pictures).
+
+**Done when:**
+
+- A GIF picked for or dropped on a mood card plays in the peek after Save, and again after a restart.
+- The release zip contains `images/chill.gif` beside the three PNGs, and a fresh install still shows the PNG cats.
+- With a GIF on every mood, opening and stepping stay within item 4's budgets, and nothing runs while the pane is closed.
+- The README shows the GIF demo below the main demo GIF, with its short section.
+
 ## Also on the list
 
 - **An empty monitor:** Alt+Tab on a monitor with no windows currently does nothing. Consider falling back to all monitors.
