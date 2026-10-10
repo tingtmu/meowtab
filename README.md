@@ -61,7 +61,7 @@ MeowTab ships one, `chill.gif`, in its `images` folder (the PNG cats stay the de
   | some | 3-7 | a cat lounging |
   | many | 8+ | a cat sprawled belly up, too tired to care... |
 
-  A GIF plays in the peek in both looks, Velvet and Windows 11. It shows still, as its first frame, when Windows' Animation effects are off.
+  A GIF plays in the peek in both looks, Velvet and Windows 11. It shows still, as its first frame, when Windows' Animation effects are off (Settings > Accessibility > Visual effects); turn it on to make the GIF move.
 
 - **Your own pictures.** Pick or drop them in the settings panel. **Clean background** cuts out a plain light background and crops to a square, built in.
 - **Keyboard and mouse.** Tab and the arrow keys move through the grid (Up and Down change rows), Delete closes a window and keeps the switcher open, Esc cancels. Hover a tile for its close button; click a tile to switch to it.
