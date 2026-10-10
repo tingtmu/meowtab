@@ -9,6 +9,7 @@ DATA_DIR := A_Temp "\meowtab-test-" A_TickCount   ; a new, empty data folder: th
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))   ; gone again however the run ends
 if A_Args.Length                           ; before the include: the app's startup reads it (and picks the title font by it)
     DirCreate(DATA_DIR), IniWrite(A_Args[1], DATA_DIR "\settings.ini", "settings", "PANE_LOOK")
+ANIM_EFFECTS := false                      ; Windows' "Animation effects" as the app reads it (Animates): Velvet's motion only in its checks
 #Include %A_LineFile%\..\..\meowtab.ahk
 A_IconHidden := true   ; no tray icon, no TrayTip: the settings warnings the bad-value checks provoke stay out of the notification centre
 lookDefault := SETTINGS_DEFAULTS["PANE_LOOK"]   ; the built-in look, as the startup load found it (this run's: PANE_LOOK)
@@ -183,6 +184,21 @@ Tone(c) => c[1] - (c[2] + c[3]) / 2 > 100 ? Format("{:02X}{:02X}{:02X}", Round(c
 
 ; DWM's rectangle for tile t's thumbnail, as ThumbPlace last set it (t.props): [left, top, right, bottom].
 ThumbRect(t) => [NumGet(t.props, 4, "int"), NumGet(t.props, 8, "int"), NumGet(t.props, 12, "int"), NumGet(t.props, 16, "int")]
+
+; One open on A-D, as Step makes it, with Velvet's motion on or off through the app's seam (ANIM_EFFECTS), never Windows' own
+; setting: whether the pane is layered (easing in) at its first frame, read on the open's line (ShowPane leaves this thread
+; Critical: no tick has run yet), and once eased in; then Tab: whether a glide is under way at once, the ms until it's over, and
+; tile 2's thumbnail right after the Tab and once all is still.
+MotionOpen(on) {
+    global ANIM_EFFECTS := on, wins := Repeat(4), idx := 1, cycling := true
+    ShowPane(true), first := Layered(), Wait(VELVET_IN_MS + 100), eased := Layered()
+    Step(1), t0 := A_TickCount, moving := glide ? 1 : 0, start := ThumbRect(tiles[2])
+    while glide && A_TickCount - t0 < 500
+        Wait(5)
+    took := A_TickCount - t0, Wait(100), end := ThumbRect(tiles[2]), Finish(false), Wait(0)
+    return {first: first, eased: eased, moving: moving, took: took, start: Format("{} {} {} {}", start*), end: Format("{} {} {} {}", end*)}
+}
+Layered() => DllCall("GetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr") >> 19 & 1   ; the pane has WS_EX_LAYERED (Velvet's ease-in)
 
 ; A shortcut through KeysParse: "readable hotkey-name", or why it's refused.
 Parsed(text, stay := false, other := "") => (why := KeysParse(text, stay, other, &keys, &hk)) = "" ? keys " " hk : why
@@ -456,12 +472,42 @@ Check("the hovered header is at least 12 levels brighter or darker than a plain 
 Check(PANE_LOOK = "velvet" ? "Velvet's close button: a muted disc on the hovered tile, red only with the mouse on it"
     : "the close button: red on the hovered tile, darker red with the mouse on it, as before", tones
     , Format("light: {1} | dark: {1}", PANE_LOOK = "velvet" ? "on the tile grey grey, disc; on it E81123 grey, disc" : "on the tile E81123 E81123; on it C42B1C C42B1C"))
+; Velvet's close button is its disc: a point in the Windows 11 look's square button but off the disc (2 px in from the square's
+; left, at the header's middle) is plain header, so it isn't lit and a click there switches to the window. In the Windows 11 look
+; the point is on the button: lit, and a click closes the window. The cursor rests there as the pane opens: the first frame's hover.
+xw := Gui(, "alttab-test X"), xw.Show("NA w300 h200"), Sleep(300)
+Open(4, 1, Map(2, xw.Hwnd)), t := tiles[2], x := t.x + t.w - CloseW(t) + 2, y := TileY(t) + grid.hdr // 2, g.GetClientPos(&px, &py), Finish(false), Wait(0)
+MouseMove(px + x, py + y, 0), wins := Repeat(4, Map(2, xw.Hwnd)), idx := 1, cycling := true, ShowPane(true), lit := hoverX, Wait(0)
+DllCall("SendMessageW", "ptr", g.Hwnd, "uint", 0x201, "ptr", 1, "ptr", y << 16 | x), DllCall("SendMessageW", "ptr", g.Hwnd, "uint", 0x202, "ptr", 0, "ptr", y << 16 | x)
+Wait(400), got := lit " " DllCall("IsWindowVisible", "ptr", xw.Hwnd) " " cycling, MouseMove(0, 0, 0), Finish(false), Wait(0), xw.Destroy()
+Check(PANE_LOOK = "velvet" ? "in Velvet a point in the square close button's place but off the disc isn't lit, and a click there switches to the window"
+    : "in the Windows 11 look that point is on the square close button: lit, and a click there closes the window", got, PANE_LOOK = "velvet" ? "0 1 0" : "1 0 1")
 Open(4, 1), rest := ThumbRect(tiles[2]), Step(1), lifted := ThumbRect(tiles[2]), Step(1), after := ThumbRect(tiles[2]), Finish(false), Wait(0)
 grow := (lifted[3] - lifted[1]) / (rest[3] - rest[1])   ; Tab to tile 2, then on to tile 3: its thumbnail's width, selected / not
 Check("Tab lifts the selected thumbnail about 2 % in Velvet (not in Windows 11), and the next Tab puts it back"
     , (Abs(grow - 1.02) <= 0.015 ? "about 2 % larger" : grow = 1 ? "the same size" : Round(grow, 3) " times as wide")
     . (Format("{} {} {} {}", after*) = Format("{} {} {} {}", rest*) ? ", then back" : ", then not back")
     , (PANE_LOOK = "velvet" ? "about 2 % larger" : "the same size") ", then back")
+
+; Velvet's motion, switched through the app's seam (MotionOpen). Off, the first frame is final and nothing moves after it; on, only
+; Velvet moves: the pane eases in, and Tab's selection glides to the next tile within VELVET_GLIDE_MS and 4 animation ticks (room
+; for a late tick or two), landing as it does without.
+off := MotionOpen(false), on := MotionOpen(true)
+Check("with Animation effects off the first frame is final: the pane isn't layered, Tab's selection jumps (no glide), and tile 2's thumbnail stays put after"
+    , off.first " " off.eased " " off.moving " " (off.start = off.end), "0 0 0 1")
+glideTo := !on.moving ? "jumps" : on.start = on.end ? "glides, but its thumbnail lifted at once" : on.took <= VELVET_GLIDE_MS + 4 * ANIM_TICK
+    ? "glides there within its " VELVET_GLIDE_MS " ms and 4 ticks" : "glides there in " on.took " ms"
+Check(PANE_LOOK = "velvet" ? "with it on Velvet eases in (layered, then not), and Tab's selection glides to the next tile within VELVET_GLIDE_MS and 4 ticks, landing as without motion"
+    : "with it on the Windows 11 look still has no motion", on.first " " on.eased ", " glideTo ", " (on.end = off.end ? "lands as without motion" : "lands elsewhere")
+    , (PANE_LOOK = "velvet" ? "1 0, glides there within its " VELVET_GLIDE_MS " ms and 4 ticks" : "0 0, jumps") ", lands as without motion")
+; A close mid-motion (Tab, then Esc at once) leaves no motion timer running. The hidden pane is then made layered at alpha 1, a
+; probe that a tick of the ease-in would change; the glide's frames are ScrollTick's, which the close stops, the picture's PeekTick's.
+ANIM_EFFECTS := true, Open(4, 1), Step(1), Finish(false), shut := Layered(), ex :=DllCall("GetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr")
+DllCall("SetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr", ex | 0x80000, "ptr"), DllCall("SetLayeredWindowAttributes", "ptr", g.Hwnd, "uint", 0, "uchar", 1, "uint", 2)
+Wait(VELVET_IN_MS + 100), DllCall("GetLayeredWindowAttributes", "ptr", g.Hwnd, "ptr", 0, "uchar*", &alpha := 0, "ptr", 0)
+probe := Layered() " " alpha, DllCall("SetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr", ex, "ptr"), ANIM_EFFECTS := false
+Check("a close mid-motion leaves no motion timer running: the pane not layered, no glide, the picture hidden, the probe's alpha untouched"
+    , shut " " (glide ? 1 : 0) " " DllCall("IsWindowVisible", "ptr", peek.Hwnd) " " probe, "0 0 0 1 1")
 
 ; User data goes to DATA_DIR (the user's AppData\MeowTab in real use), never next to the script.
 got := ""
@@ -636,7 +682,7 @@ WinGetPos(, &wy, , &wh, pnl.gui), DllCall("GetMonitorInfoW", "ptr", CurrentMonit
 wt := NumGet(mi, 24, "int"), wb := NumGet(mi, 32, "int"), lf := Buffer(92), DllCall("GetObjectW", "ptr", pnl.f["body"], "int", 92, "ptr", lf)
 Check("in the desktop's room the panel's window is inside the work area less Dpx(16), and its text is full size (10 pt)"
     , (wy >= wt && wy + wh <= wb && wh <= wb - wt - Dpx(16)) " " NumGet(lf, 0, "int"), "1 -" Round(10 * A_ScreenDPI / 72))
-Field(1).Focus(), Wait(100)                       ; in view first, as a user sees a field before clicking it
+Field(2).Focus(), Press("+{Tab}")                 ; in view first (Shift+Tab to it), as a user sees a field before clicking it
 ControlClick(Field(1)), Wait(100), was := (pnl.cap ? pnl.cap.j : 0) " " A_IsSuspended
 Press(pnl.cap ? "{LCtrl down}q" : ""), Press("{LCtrl up}")
 Check("a click on the switch field captures with the hotkeys suspended; Ctrl+Q then shows, the hotkeys back"

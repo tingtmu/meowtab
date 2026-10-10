@@ -24,7 +24,7 @@ PEEK_MAX   := 0.95    ; rising evenly to this at MANY_FROM + 4 windows and beyon
 WM_PROCESS := ""      ; optional: script exits when this process is gone, e.g. "glazewm.exe" ("" = never)
 SWITCH_KEYS := "Alt+Tab"      ; Win, Ctrl or Alt held + a key: opens the pane, moves on (with Shift: back); let go to switch
 STAY_KEYS   := "Ctrl+Alt+Tab" ; opens a pane that stays open once let go: Enter switches, Esc closes
-PANE_LOOK   := "windows11"    ; the pane's look: "velvet" (softer and warmer up close) or "windows11" (as Windows draws it)
+PANE_LOOK   := "velvet"       ; the pane's look: "velvet" (softer and warmer up close) or "windows11" (as Windows draws it)
 SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
 ; ==========================================================================
 
@@ -67,16 +67,17 @@ VELVET_R     := 14     ; tile corner radius
 VELVET_MAT   := 8      ; the tile's frame around its thumbnail, at the sides and the bottom (the header is above it)
 VELVET_LIFT  := 0.02, VELVET_LINE := 1.5, VELVET_SHADOW := 12   ; selection: tile and thumbnail this much larger; outline width; shadow blur
 VELVET_CLOSE := 22     ; close button: a circle this wide, in the middle of the Windows 11 look's square one
-; tint: warm glass over the acrylic; grain: faint specks, about this many levels either way; lip: a highlight down the top
+VELVET_IN_MS := 120, VELVET_GLIDE_MS := 90   ; while Windows' "Animation effects" is on: the pane's ease-in, the selection's glide; ms
+; tint: warm glass over the acrylic; lip: a highlight down the top
 ; padding, alpha at the edge; slot: the tile's frame; head / hot: the header's frost / the hovered header's wash, alpha at
 ; its top, fading out down the header; close: the text colour's alpha on the close button's disc and X (red with the mouse
 ; on it); shadow: under the selection, alpha at its densest; line: the outline, the accent mixed this far toward head's
 ; colour; pane, text, ring, bar: as above; hair: none (only Inset reads it)
 VELVET_LIGHT := {pane: "F3F3F3", text: "1A1714", ring: "005FB8", bar: ["000000", 114], hair: ["000000", 0]
-    , tint: ["FFF3E2", 36], grain: 6, lip: ["FFFFFF", 80], slot: ["FFFDFA", 110], head: ["FFFFFF", 130], hot: ["5C4632", 52]
+    , tint: ["FFF3E2", 13], lip: ["FFFFFF", 80], slot: ["FFFDFA", 110], head: ["FFFFFF", 130], hot: ["5C4632", 52]
     , close: [18, 150], shadow: ["3B2A1A", 96], line: 0.3}
 VELVET_DARK  := {pane: "202020", text: "F5F1EB", ring: "4CC2FF", bar: ["FFFFFF", 139], hair: ["FFFFFF", 0]
-    , tint: ["3E3127", 64], grain: 5, lip: ["FFFFFF", 22], slot: ["000000", 60], head: ["000000", 90], hot: ["FFF4E6", 46]
+    , tint: ["2B2825", 23], lip: ["FFFFFF", 22], slot: ["000000", 60], head: ["000000", 90], hot: ["FFF4E6", 46]
     , close: [24, 160], shadow: ["000000", 160], line: 0.3}
 ; ==========================================================================
 
@@ -99,7 +100,8 @@ OnExit((*) => (DllCall("UnhookWinEvent", "ptr", fgHookH), 0))   ; exit frees mru
 global wins := [], idx := 0, cycling := false, opens := 0   ; listed windows (most recent first), the selected one; opens so far
 global grid := 0, tiles := []                  ; the open pane's layout (GridLayout) and one tile per window
 global thumbs := [], icons := Map(), surf := 0  ; per open: DWM thumbnails, app icons (hwnd -> [header, big]), drawing surface
-global velvetBase := 0                         ; Velvet: the surface's base layer, as big as it (VelvetRender)
+global velvetBase := 0                         ; Velvet: the surface's base layer, as big as it, kept between opens (VelvetRender)
+global motion := false, glide := 0, velvetIn := 0   ; Velvet's motion this open (Animates); the selection's glide (VelvetGlide); the ease-in's start
 global hover := 0, hoverX := false             ; tile under the mouse (0 = none), and whether on its close button
 global mouseAt := 0, pressAt := 0, clickAt := 0, wheel := 0, tracking := false   ; mouse input, noted for the timers (see PaneMouse)
 global barA := 0, barW := 0, barOn := false, barT := 0, barNearSeen := false, barGrab := -1   ; scroll bar: opacity 0-1, width px, shown

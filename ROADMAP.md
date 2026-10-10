@@ -25,28 +25,9 @@ Code map: `meowtab.ahk` holds settings, hotkeys and switching; `alttab-native.ah
 
 ## 3. The "Velvet" look, and whether to offer a choice
 
-### 3.1 Velvet: native at a glance, Apple-like up close
+**Done**: the settings panel's new **LOOK** section picks between two looks on two picture cards, both following Windows' light and dark mode: **Velvet** (the default) and **Windows 11** (the faithful copy of Windows' own switcher). **Save** applies the pick. Velvet is softer and warmer up close: clear, faintly warm glass (a faint tint over the acrylic), rounder tiles with matted thumbnails, a lifted selection with a soft accent outline instead of the ring, and rows cut by the pane's edge that fade out. Its motion (the pane easing in, the selection gliding, the picture settling with a small bounce) follows Windows' "Animation effects" setting: with it off, nothing moves. The settings panel no longer shrinks to fit: it always shows at full size, and its sections scroll under a bar fixed at the bottom with the hint line and the buttons.
 
-The user's brief: *an ambient, elegant minimalism with a soft and warm feeling, subtle and non-glaring, creating a velvety, tactile, Apple-like aesthetic.* Directions to explore (prototype first, judge by eye on light and dark wallpapers):
-
-- **Material:** keep the system acrylic, but lay a faint warm tint over it in our own surface (light: warm white about 10-18 %; dark: warm graphite) and an extremely fine grain (the old glass look had one) for a velvety, less plasticky feel.
-- **Edges and depth:** larger, continuous-looking corners (pane about 16 px, tiles about 12-14 px), a soft inner highlight along the top edge, and a deeper but very diffuse shadow. Avoid any hard 1 px lines. The 0.1 border refinement is the first step.
-- **Partial rows:** when the grid scrolls (9 or more windows), a soft fade at the pane's top and bottom edges hints there's more.
-- **Selection:** replace the hard 4 px accent ring with something gentler, such as a slightly lifted tile (subtle glow or shadow, about a 2 % scale-up) plus a thin, softly tinted accent outline. It must stay obvious at a glance, also for colour-blind users (test with a greyscale screenshot).
-- **Header strip:** blend it into the tile (a soft frosted gradient) instead of a solid white bar; titles in the medium weight of the title font. Make the hovered header clearly visible too: in light mode today it barely differs (white at alpha 240 against 200), so only the close button shows the hover.
-- **Motion:** the pane fades and scales in (about 120 ms, spring-like ease), the selection glides between tiles (about 90 ms), and the cat gives a small settle bounce when it lands. Everything is skipped when Windows' "Animation effects" setting is off.
-- **Close button:** round and muted, turning red only under the cursor.
-
-Constraint: DWM thumbnails are always rectangular and drawn on top of our surface, so we can't round their corners. Frame them with a consistent inset "mat" instead.
-
-### 3.2 Should users pick the look? Recommendation: yes, one small choice
-
-- Add a **LOOK** section to the settings panel with two picture cards, like the mood cards: **Velvet** (the default once it's polished) and **Windows 11** (today's faithful look). Both follow Windows' light and dark mode automatically (already done for Windows 11), so there is no separate light/dark switch.
-- **The panel must still fit.** At 1080p / 150 % the settings panel already scales down to fit (to about 0.80; at full size it's about 830 px tall against 720), and the LOOK row adds more. Work out how it fits before building it, for example a scroll bar or another layout; to be discussed.
-- Two visual options in one control isn't overwhelming; three or more, or separate colour knobs, would be.
-- Later, consider folding the classic list switcher (`meowtab-classic.ahk`) into the same picker as a third look ("List"). That would leave one exe and one tray icon instead of two separate apps, and simplify releases.
-
-**Done when** both looks pass the test suite, switching looks needs no restart (or re-opens the pane cleanly), and each look has light and dark README screenshots.
+**Later**: the classic list switcher (`meowtab-classic.ahk`) could be folded into the LOOK section as a third look, "List". That would leave one exe and one tray icon instead of two separate apps, and simplify releases. The catch: two options in one control isn't overwhelming, but three or more would be.
 
 ## 4. Performance and resources
 
@@ -60,7 +41,17 @@ The 0.1 preview already feels smooth, so this is a guardrail, not a project. Bud
 | While closed | no timers, 0 % CPU | only the window-activation hook |
 | 200 opens | no growth in GDI / USER handles or memory | flat |
 
-When adding Velvet effects, cache what doesn't change per frame (tint, grain, header backgrounds) instead of re-rendering it. Measure with `QueryPerformanceCounter` before and after. If an effect breaks a budget, drop or simplify it.
+When adding Velvet effects, cache what doesn't change per frame (tint, header backgrounds) instead of re-rendering it. Measure with `QueryPerformanceCounter` before and after. If an effect breaks a budget, drop or simplify it.
+
+**Velvet's extra cost, accepted for now (2026-10-10).**
+- **Measured** over Remote Desktop with 30 windows at 150 %, against the Windows 11 look:
+  - about 3 ms more per open (15.8 ms against 12.6);
+  - 1.1–1.5 ms more per frame (a Tab step is 6.2 ms against 4.8).
+- **Budgets:** Velvet keeps the open and scroll-frame budgets. At this load both looks already miss the step budget. Its base layer (tint, highlight) is already kept between opens.
+- **Next, when this item is picked up:**
+  - cache each tile's unchanging pixels (frame, frost, icon, title), so a frame redraws only the hover and the selection;
+  - cache the cut-row fade's per-frame brushes;
+  - compare the looks with `tools\checks\run.ps1 timing -Look velvet` and `-Look windows11`.
 
 **How to measure**, so new numbers compare with these: time the code that makes each frame with `QueryPerformanceCounter`, on 30 demo windows. The open is `CollectWindows` plus `ShowPane`, not counting the wait for the next screen refresh. A Tab step is one `Step(1)`, every 33 ms for 2 s. A scroll frame is one `ScrollTick`: while Tab is held, over 24 wheel notches, and during a real drag of the scroll bar. Report the median, the maximum and how many frames go over 8 ms. Also time a fixed 5 ms of plain computation, which shows how often the machine itself pauses the process. `tools\checks\run.ps1 timing` does this, and `tools\checks\control.ahk` times the plain computation. `tools\checks\run.ps1 stay` times the stay-open pane the same way: its opens (`Stay()`), `Finish` and its steps.
 
@@ -125,4 +116,4 @@ Production notes:
 
 ## How to capture screenshots and the GIF
 
-The capture script used for the 0.1 README lists only its own demo windows. It puts a stand-in wallpaper over the monitor where the pane opens, captures the pane with `BitBlt` (`CAPTUREBLT`, which includes the acrylic and the DWM thumbnails), and crops to the pane and the picture. It needs a connected desktop. A copy lives in `tools/readme-shots.ahk`; run it from the repo root with `AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk light docs\meowtab.png` (or `dark`). A window count after the file lists more demo windows (`light out.png 12` reaches `PEEK_MAX`). `settings <out.png>` captures the settings panel alone with default settings; `docs/settings.png` is framed on a 150 % display.
+The capture script used for the 0.1 README lists only its own demo windows. It puts a stand-in wallpaper over the monitor where the pane opens, captures the pane with `BitBlt` (`CAPTUREBLT`, which includes the acrylic and the DWM thumbnails), and crops to the pane and the picture. It needs a connected desktop. A copy lives in `tools/readme-shots.ahk`; run it from the repo root with `AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk light docs\meowtab.png` (or `dark`). A window count after the file lists more demo windows (`light out.png 12` reaches `PEEK_MAX`), and a look after the count picks the pane's look (`light docs\meowtab-windows11.png 5 windows11`; the default is Velvet). `settings <out.png>` captures the settings panel alone, at its whole height, with default settings; `docs/settings.png` is framed on a 150 % display.

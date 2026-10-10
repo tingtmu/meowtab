@@ -2,20 +2,20 @@
 ; and state globals live there): native at a glance, softer and warmer up close. alttab-native.ahk calls in here only where
 ; Velvet's shapes differ (PANE_LOOK = "velvet"); the layout, thumbnails and mouse stay its own. Functions only.
 
-; ----- The surface: a base layer made once per pane size, copied at the start of each frame -----
+; ----- The surface: a base layer made once per pane size and mode, kept between opens, copied at the start of each frame -----
 
 ; Render's, for Velvet: the base layer (VelvetBaseMake) in place of the clear glass and the edge, then the tiles in view,
 ; the selected one last (lifted over the rest), and the scroll bar.
 VelvetRender(s) {
     global velvetBase
-    if !velvetBase || velvetBase.w != s.w || velvetBase.h != s.h   ; a new pane size: its base, once
-        VelvetBaseFree(), velvetBase := VelvetBaseMake(s.w, s.h)
+    if !velvetBase || velvetBase.w != s.w || velvetBase.h != s.h || velvetBase.pal != pal || velvetBase.S != grid.S
+        VelvetBaseFree(), velvetBase := VelvetBaseMake(s.w, s.h)   ; a new pane size, mode or scale: its base, once
     DllCall("BitBlt", "ptr", s.dc, "int", 0, "int", 0, "int", s.w, "int", s.h, "ptr", velvetBase.dc, "int", 0, "int", 0, "uint", 0xCC0020)   ; SRCCOPY
     DllCall("GdiFlush")                            ; in the bits before GDI+ draws on them
     VelvetClip(s.gr), frost := VelvetFrost()
     for i, t in tiles
         if i != idx && InView(t)
-            VelvetTile(s.gr, i, t, frost)
+            VelvetLifted(s.gr, i, t, frost)        ; (the tile a glide leaves still a little lifted)
     if idx && InView(tiles[idx])
         VelvetSelection(s.gr, tiles[idx], frost)
     DllCall("gdiplus\GdipDeleteBrush", "ptr", frost), DllCall("gdiplus\GdipResetClip", "ptr", s.gr)
@@ -25,20 +25,21 @@ VelvetRender(s) {
 }
 VelvetClip(gr) => DllCall("gdiplus\GdipSetClipRectI", "ptr", gr, "int", 0, "int", Inset(), "int", grid.w, "int", grid.h - 2 * Inset(), "int", 0)   ; the view, as Render's
 
-; The base layer for a w x h pane: the warm tint with the grain in it (VelvetGrain), then a soft highlight down the top half
-; of the padding; with the caches that go with the pane's size (VelvetFaded, VelvetShade, VelvetImage's attributes).
+; The base layer for a w x h pane in this palette and scale: the warm tint (VelvetTint), then a soft highlight down the top
+; half of the padding; with the caches that go with them (VelvetFaded, VelvetShade, VelvetAlpha's attributes). Freed at exit.
 VelvetBaseMake(w, h) {
-    b := SurfaceMake(w, h), b.fades := Map(), b.shades := Map(), b.ia := 0, lip := grid.pad // 2
-    DllCall("gdiplus\GdipSetPixelOffsetMode", "ptr", b.gr, "int", 3)   ; None: the texture fill is 15x faster
+    static atExit := OnExit((*) => (VelvetBaseFree(), 0))
+    b := SurfaceMake(w, h), b.pal := pal, b.S := grid.S, b.fades := Map(), b.shades := Map(), b.ia := 0, lip := grid.pad // 2
+    DllCall("gdiplus\GdipSetPixelOffsetMode", "ptr", b.gr, "int", 3)   ; None (pixel centres on whole px): as the look was tuned
     DllCall("gdiplus\GdipSetCompositingMode", "ptr", b.gr, "int", 1)   ; SourceCopy: the first layer, copied (20x faster than
-    Fill(b.gr, VelvetGrain(pal), w, h, false)                           ; drawn over the clear surface, the same pixels)
+    Fill(b.gr, VelvetTint(pal), w, h, false)                            ; drawn over the clear surface, the same pixels)
     DllCall("gdiplus\GdipSetCompositingMode", "ptr", b.gr, "int", 0)
     Fill(b.gr, FadeBrush(0, 0, w, lip, 90, [[pal.lip[1], pal.lip[2], 0], [pal.lip[1], 0, 1]]), w, lip)
     DllCall("gdiplus\GdipFlush", "ptr", b.gr, "int", 1)
     return b
 }
 
-VelvetBaseFree() {   ; with the surface (PaneFree), and at exit: the base layer and its caches
+VelvetBaseFree() {   ; for another pane size, mode or scale, and at exit: the base layer and its caches
     global velvetBase
     if !velvetBase
         return
@@ -51,42 +52,9 @@ VelvetBaseFree() {   ; with the surface (PaneFree), and at exit: the base layer 
     SurfaceFree(velvetBase), velvetBase := 0
 }
 
-; The glass's first layer for palette p, as a 128 x 128 texture brush: faint black and white specks (alpha up to 2 grain,
-; about that many levels either way) over the warm tint (without the backdrop, the tint over the opaque pane). The specks
-; come from a fixed sequence, so they're the same every run; premultiplied, as the surface is. One per tint and grain, made
-; once (WarmUp makes this mode's: about 20 ms) and deleted at exit, with the base layer.
-VelvetGrain(p) {
-    static made := Map()
-    if made.Has(key := p.tint[1] p.tint[2] "/" p.grain (BACKDROP ? "" : "/" p.pane))
-        return made[key]
-    if !made.Count
-        OnExit(Free)
-    u := Integer("0x" (BACKDROP ? p.tint[1] : Mix(p.pane, p.tint[1], p.tint[2] / 255))), ua := BACKDROP ? p.tint[2] : 255
-    ur := (u >> 16) * ua / 255, ug := (u >> 8 & 0xFF) * ua / 255, ub := (u & 0xFF) * ua / 255   ; the tint, premultiplied
-    DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", 128, "int", 128, "int", 0, "int", 0xE200B, "ptr", 0, "ptr*", &bm := 0)   ; PARGB
-    rc := Buffer(16), NumPut("int", 0, "int", 0, "int", 128, "int", 128, rc), bd := Buffer(32, 0)
-    DllCall("gdiplus\GdipBitmapLockBits", "ptr", bm, "ptr", rc, "uint", 2, "int", 0xE200B, "ptr", bd)   ; ImageLockModeWrite
-    stride := NumGet(bd, 8, "int"), bits := NumGet(bd, 16, "ptr"), n := 0
-    Loop 128 {
-        row := bits + (A_Index - 1) * stride
-        Loop 128 {                                 ; hashed counter (murmur3's finalizer; no lattice, unlike a plain LCG):
-            h := ++n * 0x9E3779B9 & 0xFFFFFFFF     ; a speck of alpha a, black or white (s), over the tint
-            h := (h ^ h >> 16) * 0x85EBCA6B & 0xFFFFFFFF, h := (h ^ h >> 13) * 0xC2B2AE35 & 0xFFFFFFFF, v := Mod(h ^ h >> 16, 4 * p.grain + 2)
-            a := v >> 1, s := v & 1 ? a : 0, k := 1 - a / 255
-            NumPut("uint", Round(a + ua * k) << 24 | Round(s + ur * k) << 16 | Round(s + ug * k) << 8 | Round(s + ub * k), row, 4 * A_Index - 4)
-        }
-    }
-    DllCall("gdiplus\GdipBitmapUnlockBits", "ptr", bm, "ptr", bd)
-    DllCall("gdiplus\GdipCreateTexture", "ptr", bm, "int", 0, "ptr*", &br := 0)   ; WrapModeTile; copies the image
-    DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
-    return made[key] := br
-    Free(*) {
-        VelvetBaseFree()
-        for a, b in made
-            DllCall("gdiplus\GdipDeleteBrush", "ptr", b)
-        return 0
-    }
-}
+; The glass's first layer for palette p, a solid brush (Brush's, kept): the warm tint at its alpha over the acrylic, or
+; without the backdrop mixed into the opaque pane. The settings panel's MiniPane fills its glass with it too.
+VelvetTint(p) => Brush(BACKDROP ? Argb(p.tint*) : Argb(Mix(p.pane, p.tint[1], p.tint[2] / 255), 255))
 
 ; The frost on every row's header at once: head's colour, its alpha at the top of each row to 0 at the header's bottom,
 ; repeating every row (th + gap apart). Made each frame (the rows scroll); the caller deletes it.
@@ -173,14 +141,18 @@ VelvetTile(gr, i, t, frost) {
 VelvetImage(gr, bm, x, y, sz, cut) {
     if !cut || (m := VelvetFade(y + sz / 2)) >= 1
         return DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", bm, "int", x, "int", y, "int", sz, "int", sz)
+    DllCall("gdiplus\GdipDrawImageRectRectI", "ptr", gr, "ptr", bm, "int", x, "int", y, "int", sz, "int", sz
+        , "int", 0, "int", 0, "int", sz, "int", sz, "int", 2, "ptr", VelvetAlpha(m), "ptr", 0, "ptr", 0)   ; UnitPixel
+}
+
+VelvetAlpha(m) {   ; image attributes that draw an image at alpha m, kept with the base layer
     if !velvetBase.ia
         DllCall("gdiplus\GdipCreateImageAttributes", "ptr*", &ia := 0), velvetBase.ia := ia
     cm := Buffer(100, 0)                           ; ColorMatrix: the identity, alpha times m
     for k, v in [1, 1, 1, m, 1]
         NumPut("float", v, cm, 24 * (k - 1))
     DllCall("gdiplus\GdipSetImageAttributesColorMatrix", "ptr", velvetBase.ia, "int", 0, "int", 1, "ptr", cm, "ptr", 0, "int", 0)
-    DllCall("gdiplus\GdipDrawImageRectRectI", "ptr", gr, "ptr", bm, "int", x, "int", y, "int", sz, "int", sz
-        , "int", 0, "int", 0, "int", sz, "int", sz, "int", 2, "ptr", velvetBase.ia, "ptr", 0, "ptr", 0)   ; UnitPixel
+    return velvetBase.ia
 }
 
 VelvetTitle(gr, s, x, y, w, h, br) {   ; Title's, with a brush (in a cut row, faded)
@@ -188,8 +160,8 @@ VelvetTitle(gr, s, x, y, w, h, br) {   ; Title's, with a brush (in a cut row, fa
     DllCall("gdiplus\GdipDrawString", "ptr", gr, "wstr", s, "int", -1, "ptr", titleFont, "ptr", rc, "ptr", titleFmt, "ptr", br)
 }
 
-; The close button in the hovered header's right end (x, y, w, h: the Windows 11 look's square one, where a click closes): a
-; round disc, muted (the text colour at low alpha) with a grey X; red with a white X while the mouse is on it.
+; The close button in the hovered header's right end (x, y, w, h: the Windows 11 look's square one): a round disc, muted (the
+; text colour at low alpha) with a grey X; red with a white X while the mouse is on it (VelvetOnClose).
 VelvetClose(gr, x, y, w, h) {
     S := grid.S, rd := VELVET_CLOSE * S / 2, d := CLOSE_X * S / 3, cx := x + w / 2, cy := y + h / 2, m := VelvetFade(cy)
     DllCall("gdiplus\GdipCreateSolidFill", "uint", hoverX ? Argb(CLOSE_RGB, Round(255 * m)) : Argb(pal.text, Round(pal.close[1] * m)), "ptr*", &br := 0)
@@ -201,32 +173,57 @@ VelvetClose(gr, x, y, w, h) {
     DllCall("gdiplus\GdipDeletePen", "ptr", pen), DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
 }
 
+; Content point pt on tile t's close button (HitTest's onX, where a click closes): on VelvetClose's disc, or 2 px around it
+; (at the scale); not the rest of the Windows 11 look's square, which is plain header in Velvet.
+VelvetOnClose(pt, t) => (pt[1] - t.x - t.w + CloseW(t) / 2) ** 2 + (pt[2] - t.y - grid.hdr / 2) ** 2 <= ((VELVET_CLOSE / 2 + 2) * grid.S) ** 2
+
 ; ----- The selection, lifted -----
 
-; The selected tile: a soft shadow around it (VelvetShade), the tile VELVET_LIFT larger around its centre (VelvetBox lifts
-; its thumbnail alike), and a thin outline of the accent mixed toward the header's colour.
+; The selected tile t: a soft shadow around its frame (VelvetShade; VelvetFrame: t's, or gliding to it), the tile at its lift
+; (VELVET_LIFT larger around its centre once there; VelvetBox lifts its thumbnail alike), and a thin outline of the accent mixed
+; toward the header's colour, round the frame as lifted. In the fade (a cut row) the shadow and the outline fade as the close
+; button does, at the frame's centre: no crisp ring round a fading tile.
 VelvetSelection(gr, t, frost) {
-    S := grid.S, k := 1 + VELVET_LIFT, cx := t.x + t.w / 2, cy := TileY(t) + grid.th / 2, r := Round(VELVET_R * S)
-    w := t.w * k, h := grid.th * k, x := cx - w / 2, y := cy - h / 2, sh := VelvetShade(w, h), tile := RoundPath(x, y, w, h, r * k)
-    DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", tile, "int", 4)   ; CombineModeExclude: only around the tile (its fills let it through)
-    DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", sh.bm, "int", Round(x - sh.o), "int", Round(y - sh.o), "int", sh.w, "int", sh.h)   ; whole px: no resampling
-    DllCall("gdiplus\GdipDeletePath", "ptr", tile)
-    VelvetClip(gr)
-    DllCall("gdiplus\GdipTranslateWorldTransform", "ptr", gr, "float", -cx, "float", -cy, "int", 1)   ; MatrixOrderAppend: to the
-    DllCall("gdiplus\GdipScaleWorldTransform", "ptr", gr, "float", k, "float", k, "int", 1)           ; origin, larger, and back:
-    DllCall("gdiplus\GdipTranslateWorldTransform", "ptr", gr, "float", cx, "float", cy, "int", 1)     ; around the tile's centre
-    VelvetTile(gr, idx, t, frost)
-    lw := VELVET_LINE * S
-    Outline(gr, t.x, TileY(t), t.w, grid.th, r, lw / 2, lw, Argb(Mix(accentRgb, pal.head[1], pal.line), 255))
+    S := grid.S, k := 1 + VELVET_LIFT, f := VelvetFrame(), cx := f[1] + f[3] / 2, cy := f[2] - grid.off + grid.th / 2, r := Round(VELVET_R * S)
+    w := f[3] * k, h := grid.th * k, x := cx - w / 2, y := cy - h / 2, sh := VelvetShade(t.w * k, h), frame := RoundPath(x, y, w, h, r * k)
+    m := VelvetFade(cy)
+    DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", frame, "int", 4)   ; CombineModeExclude: only around the frame (a tile's fills let it through)
+    DllCall("gdiplus\GdipDrawImageRectRectI", "ptr", gr, "ptr", sh.bm, "int", Round(x - sh.o), "int", Round(y - sh.o)   ; whole px: no resampling
+        , "int", sh.w + Round(w - t.w * k), "int", sh.h, "int", 0, "int", 0, "int", sh.w, "int", sh.h   ; (gliding: t's stretched to the frame)
+        , "int", 2, "ptr", m < 1 ? VelvetAlpha(m) : 0, "ptr", 0, "ptr", 0)   ; UnitPixel
+    DllCall("gdiplus\GdipDeletePath", "ptr", frame)
+    VelvetClip(gr), VelvetLifted(gr, idx, t, frost)
+    VelvetScale(gr, cx, cy, k), lw := VELVET_LINE * S
+    Outline(gr, f[1], cy - grid.th / 2, f[3], grid.th, r, lw / 2, lw, Argb(Mix(accentRgb, pal.head[1], pal.line), Round(255 * m)))
     DllCall("gdiplus\GdipResetWorldTransform", "ptr", gr)
+}
+
+VelvetLifted(gr, i, t, frost) {   ; tile i at its lift now (VelvetLift): that much larger around its centre
+    if lift := VelvetLift(t)
+        VelvetScale(gr, t.x + t.w / 2, TileY(t) + grid.th / 2, 1 + lift)
+    VelvetTile(gr, i, t, frost)
+    if lift
+        DllCall("gdiplus\GdipResetWorldTransform", "ptr", gr)
+}
+
+VelvetScale(gr, cx, cy, k) {   ; what's drawn next k times larger around cx, cy; GdipResetWorldTransform ends it
+    DllCall("gdiplus\GdipTranslateWorldTransform", "ptr", gr, "float", -cx, "float", -cy, "int", 1)   ; MatrixOrderAppend: to the
+    DllCall("gdiplus\GdipScaleWorldTransform", "ptr", gr, "float", k, "float", k, "int", 1)           ; origin, larger, and back
+    DllCall("gdiplus\GdipTranslateWorldTransform", "ptr", gr, "float", cx, "float", cy, "int", 1)
 }
 
 ; The selection's shadow for a lifted tile w x h: a soft ring, deeper below (lit from above), a path gradient with a bell
 ; falloff as the panel's cards have; baked once per tile size into a premultiplied bitmap (the surface's format: a quick
-; copy) with the tile's top-left at o, o, kept with the base layer. {bm, o, w, h}
+; copy) with the tile's top-left at o, o, kept with the base layer (past 8 sizes, as windows come and go, all of them freed
+; first). {bm, o, w, h}
 VelvetShade(w, h) {
     if velvetBase.shades.Has(key := Round(w) "x" Round(h))
         return velvetBase.shades[key]
+    if velvetBase.shades.Count > 8 {
+        for k, sh in velvetBase.shades
+            DllCall("gdiplus\GdipDisposeImage", "ptr", sh.bm)
+        velvetBase.shades.Clear()
+    }
     b := VELVET_SHADOW * grid.S, o := Ceil(b) + 1, bw := Ceil(w) + 2 * o, bh := Ceil(h) + 2 * o
     DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", bw, "int", bh, "int", 0, "int", 0xE200B, "ptr", 0, "ptr*", &bm := 0)   ; PARGB
     sg := Canvas(bm)
@@ -237,12 +234,12 @@ VelvetShade(w, h) {
 }
 
 ; Tile t's thumbnail box (ThumbPlace fits the thumbnail in it): its slot x, y, w, h inside the mat at the sides and the
-; bottom; while selected, VELVET_LIFT larger around the tile's centre, as VelvetSelection draws the tile.
+; bottom; lifted (VelvetLift: while selected, VELVET_LIFT) larger around the tile's centre, as VelvetLifted draws the tile.
 VelvetBox(t, &x, &y, &w, &h) {
     m := Round(VELVET_MAT * grid.S), x += m, w -= 2 * m, h -= m
-    if !idx || ObjPtr(t) != ObjPtr(tiles[idx])
+    if !(lift := VelvetLift(t))
         return
-    k := 1 + VELVET_LIFT, cx := t.x + t.w / 2, cy := TileY(t) + grid.th / 2
+    k := 1 + lift, cx := t.x + t.w / 2, cy := TileY(t) + grid.th / 2
     x := cx + (x - cx) * k, y := cy + (y - cy) * k, w *= k, h *= k
 }
 
@@ -250,4 +247,66 @@ VelvetRelift(was) {   ; the selection moved with no scroll: tile was's thumbnail
     for i in [was, idx]
         if i && tiles[i].on
             ThumbPlace(tiles[i], TileY(tiles[i]) + grid.hdr, Inset())
+}
+
+; ----- Motion (design 8), only while Windows' "Animation effects" is on: `motion`, read at each open (PaneShow) -----
+
+; Windows' "Animation effects" setting (SPI_GETCLIENTAREAANIMATION); a test sets ANIM_EFFECTS instead.
+Animates() => IsSet(ANIM_EFFECTS) ? ANIM_EFFECTS : (DllCall("SystemParametersInfoW", "uint", 0x1042, "uint", 0, "int*", &on := 0, "uint", 0), on)
+
+; The pane's ease-in: layered before it shows, its alpha rising from 64 to full over VELVET_IN_MS (ease-out cubic), the live
+; acrylic and the thumbnails with it (velvet-look 5.1); then VelvetEaseEnd.
+VelvetEaseIn() {
+    global velvetIn := A_TickCount
+    DllCall("SetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr", DllCall("GetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr") | 0x80000, "ptr")   ; WS_EX_LAYERED
+    SetTimer(VelvetEaseTick, ANIM_TICK)
+    VelvetEaseTick()                               ; the first frame's alpha
+}
+
+VelvetEaseTick() {
+    Critical
+    p := Min((A_TickCount - velvetIn) / VELVET_IN_MS, 1)
+    DllCall("SetLayeredWindowAttributes", "ptr", g.Hwnd, "uint", 0, "uchar", Round(64 + 191 * (1 - (1 - p) ** 3)), "uint", 2)   ; LWA_ALPHA
+    if p >= 1
+        VelvetEaseEnd()
+}
+
+; The ease-in done, or the pane closed (PaneFree): its timer stopped, the layered style cleared; shown, the pane is drawn whole
+; again, as the docs on layered windows advise.
+VelvetEaseEnd() {
+    SetTimer(VelvetEaseTick, 0)
+    DllCall("SetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr", DllCall("GetWindowLongPtrW", "ptr", g.Hwnd, "int", -20, "ptr") & ~0x80000, "ptr")
+    if DllCall("IsWindowVisible", "ptr", g.Hwnd)
+        DllCall("RedrawWindow", "ptr", g.Hwnd, "ptr", 0, "ptr", 0, "uint", 0x585)   ; INVALIDATE|ERASE|ALLCHILDREN|UPDATENOW|FRAME
+}
+
+; Tab and the arrows, before the selection moves (SelectTile): it glides to tile i over VELVET_GLIDE_MS from where it shows now,
+; mid-glide too, easing out as the scroll does, on ScrollTick's frames (VelvetGlideStep). Its frame is kept in content px, so a
+; scroll moves it along; the lift passes from the tile it leaves to tile i, each starting from the lift it has now.
+VelvetGlide(i) {
+    global glide
+    f := VelvetFrame()
+    glide := {x: f[1], y: f[2], w: f[3], t0: A_TickCount, e: 0, was: idx, up: VelvetLift(tiles[i]), down: VelvetLift(tiles[idx])}
+}
+
+VelvetGlideStep() {   ; one of ScrollTick's frames: the glide's ease now; there, no glide
+    global glide
+    p := Min((A_TickCount - glide.t0) / VELVET_GLIDE_MS, 1), glide.e := 1 - (1 - p) ** 3
+    if p >= 1
+        glide := 0
+}
+
+VelvetFrame() {   ; the selection's frame now, [x, y, w] in content px (a tile tall): the selected tile's, or on its way there
+    t := tiles[idx]
+    if !glide
+        return [t.x, t.y, t.w]
+    return [glide.x + (t.x - glide.x) * glide.e, glide.y + (t.y - glide.y) * glide.e, glide.w + (t.w - glide.w) * glide.e]
+}
+
+VelvetLift(t) {   ; tile t's lift now, 0 .. VELVET_LIFT: the selected one's; while the selection glides, it rises as the tile left settles
+    if !idx
+        return 0
+    if ObjPtr(t) = ObjPtr(tiles[idx])
+        return glide ? glide.up + (VELVET_LIFT - glide.up) * glide.e : VELVET_LIFT
+    return glide && ObjPtr(t) = ObjPtr(tiles[glide.was]) ? glide.down * (1 - glide.e) : 0
 }

@@ -2,9 +2,13 @@
 
 **Alt+Tab the Windows 11 way, with a cat peeking over the edge.**
 
-MeowTab replaces Alt+Tab with a switcher that looks like the one built into Windows 11: live previews of your windows in a grid, on a frosted acrylic pane that follows light and dark mode. Then it adds one small, silly thing: a picture peeks over the pane's top-left edge, and it changes with how many windows you have open. A sleepy cat when you have a few, a cat sprawled belly up when it's getting crowded. Swap in your own pictures and let your pet, your mascot or your boss judge your window count.
+MeowTab replaces Alt+Tab with a switcher in the style of the one built into Windows 11: live previews of your windows in a grid, on a frosted acrylic pane that follows light and dark mode. Its default look, Velvet, is native at a glance and softer and warmer up close; the Windows 11 look copies Windows' own. Then it adds one small, silly thing: a picture peeks over the pane's top-left edge, and it changes with how many windows you have open. A sleepy cat when you have a few, a cat sprawled belly up when it's getting crowded. Swap in your own pictures and let your pet, your mascot or your boss judge your window count.
 
 ![MeowTab](docs/meowtab.png)
+*Velvet (default)*
+
+![MeowTab in the Windows 11 look](docs/meowtab-windows11.png)
+*Windows 11*
 
 > **Status: early preview (0.1).** MeowTab grew out of [peek-alttab](https://github.com/tingtmu/peek-alttab) and is being polished into a full app; see the [roadmap](ROADMAP.md).
 
@@ -31,9 +35,16 @@ MeowTab replaces Alt+Tab with a switcher that looks like the one built into Wind
 
 ## Features
 
-- **Looks native.** A grid of live window thumbnails, each with its app icon and title, on Windows 11's own acrylic material. The selection gets the accent-coloured ring Windows uses. Light or dark follows your Windows mode, and the ring follows your accent colour.
+- **Looks native, in two looks.** A grid of live window thumbnails, each with its app icon and title, on Windows 11's own acrylic material.
+  - **Velvet,** the default, warms the clear glass with a faint tint, rounds the tiles and frames each preview. It lifts the selected tile with a soft accent outline, and fades the rows cut by the pane's edge.
+  - **The Windows 11 look** gives the selection the accent-coloured ring Windows uses.
+  - Either way, light or dark follows your Windows mode, and the accent follows your accent colour. Pick the look in the settings panel.
 
   ![MeowTab in dark mode](docs/meowtab-dark.png)
+  *Velvet (default)*
+
+  ![MeowTab in the Windows 11 look, in dark mode](docs/meowtab-windows11-dark.png)
+  *Windows 11*
 
 - **The peek.** A mood picture sits on the pane's top-left edge, slides up when the switcher opens and rises a little higher the more windows you have:
 
@@ -158,6 +169,7 @@ Double-click the tray icon, or right-click it and choose **Settings…**. The de
 - **Clean background** (`✧ Clean`, on a card with your own picture) removes a plain light background and crops the picture to a square.
 - **Peek height.** How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes preview it with your own pictures.
 - **Look.** Two cards, **Velvet** (softer and warmer up close: warm glass, rounder tiles, a lifted selection) and **Windows 11** (as Windows draws it), each a small picture of the switcher in that look, in your Windows mode and accent colour. Click a card, or press Space on it, to pick it: a check marks the picked look, and **in use** the one MeowTab has now. The peek scenes and the title sample show the picked look at once, and **Save** applies it. `meowtab-classic` has no Look section.
+  Velvet's motion (the pane easing in, the selection gliding, the picture settling with a small bounce) follows Windows' **Animation effects** setting (Settings > Accessibility > Visual effects): with it off, nothing moves.
 - **Title font.** Any installed font, at 10 to 24 pt.
 - **Shortcuts.** Click **Switch windows** or **Stay open**, then press the new combination; **Esc** keeps the old one. Switching takes Alt, Ctrl or Win with one key, and the same with Shift goes back (shown under it). A combination that can't work, such as one with Esc or the arrows or one already in use, is refused, and the line under the cards says why. **Defaults** puts back Alt+Tab and Ctrl+Alt+Tab. `meowtab-classic` has no Shortcuts section.
 
@@ -185,7 +197,7 @@ Pull requests adding picture sets to `images/` are welcome. Please only submit a
 
 | Script | Look |
 | --- | --- |
-| `meowtab.ahk` (main) | Windows 11 style: a grid of live previews on acrylic, the picture peeking over the top-left edge. |
+| `meowtab.ahk` (main) | Draws the Velvet look by default, or the Windows 11 look: a grid of live previews on acrylic, the picture peeking over the top-left edge. |
 | `meowtab-classic.ahk` | The original layout: a list of titles with one large preview beside it, the picture inside the pane's bottom-left corner. |
 
 Run only one at a time; both replace Alt+Tab. The other `.ahk` files are parts the two scripts include, not meant to be run on their own.
@@ -205,7 +217,7 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 | `PEEK_MAX` | `0.95` | main | panel | Share shown at `MANY_FROM + 4` windows and beyond (0.30-1.00, above `PEEK_MIN`). |
 | `SWITCH_KEYS` | `Alt+Tab` | main | panel | The switcher's shortcut: Alt, Ctrl or Win held with one key; with Shift it goes back. |
 | `STAY_KEYS` | `Ctrl+Alt+Tab` | main | panel | Opens the switcher that stays open once you let go. |
-| `PANE_LOOK` | `windows11` | main | panel | The switcher's look: `velvet` or `windows11`. |
+| `PANE_LOOK` | `velvet` | main | panel | The switcher's look: `velvet` or `windows11`. |
 | `IMG_SIZE` | `250` / `100` | main / classic | ini | Picture size in pixels. |
 | `WM_PROCESS` | empty | both | ini | Exit when this process is gone, e.g. `glazewm.exe`. |
 | `LIST_WIDTH` | `700` | classic | ini | List width in pixels. |
@@ -213,7 +225,7 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 | `PREVIEW_W` | `800` | classic | ini | Preview width in pixels; `0` turns it off. |
 | `IMG_ROWS` | `12` | classic | ini | The list covers the picture only beyond this many windows. |
 
-`meowtab.ahk` also has a **Native look** block of constants just below the settings (pane padding, tile sizes and gaps, the selection ring, the close button, light and dark colours), each line commented, for tinkering.
+`meowtab.ahk` also has a **Native look** block of constants just below the settings (pane padding, tile sizes and gaps, the selection ring, the close button, light and dark colours), each line commented, for tinkering. Velvet's palettes and sizes sit next to the Windows 11 ones (`VELVET_LIGHT` and `VELVET_DARK` beside `LIGHT_PAL` and `DARK_PAL`).
 
 ## Remove MeowTab
 
@@ -295,7 +307,7 @@ Its argument is the look to test in: `velvet` as above, or `windows11`. Without 
 
 ## Roadmap
 
-A softer "Velvet" look, a new demo GIF and more are planned: see [ROADMAP.md](ROADMAP.md).
+The softer "Velvet" look is done. A new demo GIF and more are planned: see [ROADMAP.md](ROADMAP.md).
 
 ## License
 

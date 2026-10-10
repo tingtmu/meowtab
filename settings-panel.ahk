@@ -39,7 +39,7 @@ SettingsOpen(*) {
     PendingClear()                                    ; leftovers of a crash
     peek := SettingsHas("PEEK_MIN")
     pnl := {tok: tok, el: Map(), cards: [], frames: [], labels: [], hover: 0, side: 0, drag: 0, dirty: false
-        , note: PanelIssues(), held: 0, cap: 0, why: "", dy: 0, off: 0, wide: false, grab: -1
+        , note: PanelIssues(), held: 0, cap: 0, why: "", dy: 0, off: 0, wide: false, grab: -1, tabbed: false
         , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE
         , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0
         , keys: SettingsHas("SWITCH_KEYS") ? [SettingsGet("SWITCH_KEYS"), SettingsGet("STAY_KEYS")] : 0
@@ -153,7 +153,7 @@ PanelLayoutKeys(w, pad, gap, y) {
 }
 
 ; An owner-drawn element on pnl.at, pnl.dy below its place in the surface (x, y): a focusable button, which scrolls into
-; view when it takes the focus, or a plain owner-drawn static for the display-only kinds.
+; view when Tab moves the focus to it, or a plain owner-drawn static for the display-only kinds.
 PanelAdd(kind, x, y, w, h, paint, hint := "", click := 0) {
     if kind ~= "^(hint|scene|sample|line)$"
         c := pnl.at.AddText("x" x " y" y + pnl.dy " w" w " h" h " 0xD")    ; SS_OWNERDRAW
@@ -300,10 +300,12 @@ PanelErase(wParam, lParam, msg, hwnd) {
     return 1
 }
 
-PanelKey(wParam, lParam, msg, hwnd) {   ; Enter = Save; arrows / + / - / PgUp / PgDn on steppers and sliders
+PanelKey(wParam, lParam, msg, hwnd) {   ; Enter = Save; arrows / + / - / PgUp / PgDn on steppers and sliders; Tab noted (PanelReveal)
     static steps := Map(37, -1, 40, -1, 39, 1, 38, 1, 0xBB, 1, 0x6B, 1, 0xBD, -1, 0x6D, -1, 33, 10, 34, -10, 36, -100, 35, 100)
     if !pnl || DllCall("GetAncestor", "ptr", hwnd, "uint", 2, "ptr") != pnl.gui.Hwnd   ; GA_ROOT
         return
+    if wParam = 9                                     ; Tab (or Shift+Tab), on its way to move the focus
+        pnl.tabbed := true
     if wParam = 13 {
         if SendMessage(0x157, 0, 0, pnl.ddl)          ; CB_GETDROPPEDSTATE: Enter picks from the open list
             return
@@ -403,10 +405,12 @@ PanelWheel(wParam, lParam, msg, hwnd) {   ; WM_MOUSEWHEEL anywhere over the pane
     return 0
 }
 
-; A control of the page that takes the keyboard focus scrolls into view: Dpx(16) to spare below it, and above it room for a
-; section's label too (Dpx(26) over its first control). Not a click's focus: the page moving under the press would undo the click.
+; A control of the page that Tab moves the focus to scrolls into view: Dpx(16) to spare below it, and above it room for a
+; section's label too (Dpx(26) over its first control). No other focus does: not a click's (the page moving under the press
+; would undo the click), nor the one restored when the panel is activated again (the page would jump back to the control).
 PanelReveal(ctl, *) {
-    if ctl.Gui != pnl.page || GetKeyState("LButton", "P")
+    tabbed := pnl.tabbed, pnl.tabbed := false
+    if !tabbed || ctl.Gui != pnl.page
         return
     ctl.GetPos(, &y, , &h)
     PanelScroll(Min(Max(pnl.off, y + h + Dpx(16) - pnl.viewH), y - Dpx(42)))

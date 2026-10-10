@@ -1,7 +1,9 @@
-; opens.ahk: velvet-look's "Many opens" (tasks 3.4 and 7.2): the pane opened and closed n times (default 200) on lib.ahk's 30 demo
+; opens.ahk: velvet-look's "Many opens" (tasks 3.4 and 7.2): the pane opened and closed n times (default 200) on lib.ahk's demo
 ; windows over the light stand-in wallpaper, as timing.ahk stages them, in the look run.ps1 gives the app (-Look). Each open is
-; lib.ahk's OpenPane / ClosePane: the picture's slide-up finishes, the scroll bar's fade is still pending at the close. The last one
-; is closed 60 ms in instead, mid-motion: the picture still sliding up, a wheel scroll under way.
+; lib.ahk's OpenPane / ClosePane: the picture's slide-up finishes, the scroll bar's fade is still pending at the close. The opens
+; take 8 and 30 windows by turns, the shaped layout and the grid, so the pane's size changes at each (two grid counts, such as 29
+; and 30, make the same pane) and Velvet's base layer and its caches are made again, the old ones freed. Each sample follows an
+; open on 30. The last one is closed 60 ms in instead, mid-motion: the picture still sliding up, a wheel scroll under way.
 ; One line per check, PASS or FAIL, then ALL PASSED or "n FAILED":
 ;   handles  GDI and USER objects (GetGuiResources) after the last close: at most 2 more than after a warm-up of 10 opens. A leak of
 ;            one object per open adds n; 2 leaves room for an object Windows or GDI+ makes once, late.
@@ -30,14 +32,14 @@ OpensMain(out, tag, n) {
         Say("SKIP no screen: no foreground window (query session: Disc?), so nothing was shown")
         ExitApp(4)
     }
-    Note("opens " tag ": " n " opens in the " (IsSet(PANE_LOOK) ? PANE_LOOK : "windows11") " look, 30 demo windows")
+    Note("opens " tag ": " n " opens in the " (IsSet(PANE_LOOK) ? PANE_LOOK : "windows11") " look, 8 and 30 demo windows by turns")
     Stage(30), SetWallpaper(false)                     ; as timing.ahk: light, whatever the Windows mode is
     Loop 10                                            ; the warm-up: GDI+'s, DWM's and the app's own caches fill
-        OpenPane(30), ClosePane()
+        OpenPane(A_Index & 1 ? 8 : 30), ClosePane()
     Sleep(2000)                                        ; as long as the watch after the last close
     first := Taken("after the warm-up of 10")
     Loop n - 1 {
-        OpenPane(30), ClosePane()
+        OpenPane(A_Index & 1 ? 8 : 30), ClosePane()
         if !Mod(A_Index, 50)
             Taken("after " A_Index " of " n)
     }

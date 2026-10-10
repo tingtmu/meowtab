@@ -25,13 +25,15 @@ PeekTo(k, n, x, edge, fresh) {
     PeekTick()                                     ; the first frame now
 }
 
-; One frame (ease-out cubic): the image's top n rows, the window's bottom exactly on the pane's top edge. DWM's
-; border is off (PaneInit), so the acrylic reaches the edge: nothing goes under it (it would blur into the glass).
+; One frame (ease-out cubic; with Velvet's motion, ease-out back: it settles with a small bounce): the image's top n rows,
+; the window's bottom exactly on the pane's top edge. DWM's border is off (PaneInit), so the acrylic reaches the edge:
+; nothing goes under it (it would blur into the glass).
 PeekTick() {
     global peekN
     Critical
     p := PEEK_MS > 0 ? Min((A_TickCount - peekT) / PEEK_MS, 1) : 1
-    peekN := peekFrom + (peekGoal - peekFrom) * (1 - (1 - p) ** 3)
+    q := 1 - p, b := motion ? 1 : 0                ; back 1: past the goal by 1/27 of the way (at p = 2/3), then on it
+    peekN := peekFrom + (peekGoal - peekFrom) * (1 - (1 + b) * q ** 3 + b * q ** 2)
     if p >= 1
         SetTimer PeekTick, 0
     hw := peek.Hwnd, h := Min(Round(peekN), IMG_SIZE)

@@ -97,9 +97,13 @@ SettingsShot(file) {   ; the settings panel alone; exits when done
     SendMessage 0x128, 0x10002, 0, hw              ; WM_UPDATEUISTATE, clear UISF_HIDEFOCUS: the focus ring, as after a first Tab
     Sleep 400
     ; Taller than the screen: only what has been on it gets painted, and DWM keeps that (seen: the bar below the screen stayed
-    ; blank). So the panel is raised a screen at a time until its bottom is on it.
-    while y + h > (b := NumGet(mi, 16, "int"))    ; rcMonitor's bottom
-        y := Max(y - b + NumGet(mi, 8, "int"), b - h), WinMove(, y, , , hw), Sleep(400)
+    ; blank). So the panel is raised a screen at a time until its bottom is on it, each time repainted whole before going on
+    ; (a wait alone raced the slower painters: the sample, the shortcuts and the bar came out blank).
+    while y + h > (b := NumGet(mi, 16, "int")) {  ; rcMonitor's bottom
+        y := Max(y - b + NumGet(mi, 8, "int"), b - h), WinMove(, y, , , hw)
+        DllCall("RedrawWindow", "ptr", hw, "ptr", 0, "ptr", 0, "uint", 0x585)   ; INVALIDATE ERASE ALLCHILDREN UPDATENOW FRAME
+        DllCall("dwmapi\DwmFlush"), Sleep(200)
+    }
     Capture(0, 0, w, h, file, hw)
     PanelClose()
     ExitApp

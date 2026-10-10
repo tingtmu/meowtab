@@ -318,11 +318,11 @@ MiniPane(gr, lk, x, y, w, h, r, tiles, hdr, sel) {
     p := MiniPal(lk), vel := lk = "velvet", glass := RoundPath(x, y, w, h, r)
     DllCall("gdiplus\GdipCreateSolidFill", "uint", Argb(p.pane, 255), "ptr*", &br := 0)
     DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", glass), DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
-    ; Velvet: the warm tint with its grain (the switcher's texture, half as strong: a fine grain in small) and a soft highlight
-    ; down the top. Windows 11: DrawEdge's edge, a hairline (none in dark mode) and a highlight inside it.
+    ; Velvet: the warm tint (the switcher's brush) and a soft highlight down the top. Windows 11: DrawEdge's edge, a hairline
+    ; (none in dark mode) and a highlight inside it.
     if vel {
-        grain := SettingsGet("VelvetGrain"), fine := {tint: p.tint, grain: p.grain // 2, pane: p.pane}
-        DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", grain(fine), "ptr", glass)
+        tint := SettingsGet("VelvetTint")
+        DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", tint(p), "ptr", glass)
         lip := RoundPath(x, y, w, Dpx(16), r), br := FadeBrush(x, y, w, Dpx(16), 90, [[p.lip[1], p.lip[2], 0], [p.lip[1], 0, 0.5], [p.lip[1], 0, 1]])
         DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", lip)
         DllCall("gdiplus\GdipDeleteBrush", "ptr", br), DllCall("gdiplus\GdipDeletePath", "ptr", lip)
