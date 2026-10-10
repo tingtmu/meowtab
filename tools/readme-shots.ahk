@@ -7,21 +7,26 @@
 ;     cropped to the pane and the picture, and not taken if a window that isn't ours is above the wallpaper inside the crop.
 ;     [windows]: how many demo windows to list (default 5; 12 and more reach PEEK_MAX).
 ;     [look]: the pane's look, velvet or windows11 (default: the app's default look).
+;     [tint]: Velvet's tint alpha for this shot, 0-255, in place of the palette's (its colour stays): to compare strengths.
 ;   settings: the settings panel alone (its own pixels), with default settings: it runs on an empty temporary data
 ;     folder, so the user's own settings.ini is neither read nor written. The panel gets its whole content height, every
 ;     section with no scroll bar, also where that's taller than the screen: it's raised until all of it has been on the
 ;     screen, and PrintWindow takes DWM's copy of the whole window. At this display's own scale: docs\settings.png is taken
 ;     on a 150 % display.
-; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11]
+; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint]
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk settings <out.png>
 ; (default out: docs\meowtab.png / docs\meowtab-dark.png). Keep hands off the mouse and keyboard for ~5 s.
 DATA_DIR := A_Temp "\meowtab-shots-" A_TickCount   ; a new, empty data folder: default settings, and the user's own are never read or changed
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))
 if A_Args.Length > 3 && !(A_Args[4] = "velvet" || A_Args[4] = "windows11")
-    FileAppend("usage: readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11]`n", "*"), ExitApp(1)
+    || A_Args.Length > 4 && !(IsInteger(A_Args[5]) && A_Args[5] >= 0 && A_Args[5] <= 255)
+    FileAppend("usage: readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint 0-255]`n", "*"), ExitApp(1)
 if A_Args.Length > 3                               ; the look, in that folder's settings.ini: the app's startup reads it (and picks the title font by it)
     DirCreate(DATA_DIR), IniWrite(A_Args[4], DATA_DIR "\settings.ini", "settings", "PANE_LOOK")
 #Include %A_LineFile%\..\..\meowtab.ahk
+if A_Args.Length > 4                               ; the tint: Velvet's palettes as copies with that alpha (each keeps its colour)
+    VELVET_LIGHT := VELVET_LIGHT.Clone(), VELVET_LIGHT.tint := [VELVET_LIGHT.tint[1], Integer(A_Args[5])]
+    , VELVET_DARK := VELVET_DARK.Clone(), VELVET_DARK.tint := [VELVET_DARK.tint[1], Integer(A_Args[5])]
 
 REPO := RegExReplace(A_LineFile, "\\[^\\]+\\[^\\]+$")   ; the folder above tools\
 global imgs := [], spans := []                 ; the include looked for the pictures next to this script: load the repo's
