@@ -75,9 +75,17 @@ MeowTab ships one, `chill.gif`, in its `images` folder (the PNG cats stay the de
 
 ## Quick start
 
-1. Open the [latest release](https://github.com/tingtmu/meowtab/releases/latest). Its notes give the hashes and virus-scan links for the files (see [Check the download](#check-the-download)). Download `meowtab.zip` there, or straight from [this link](https://github.com/tingtmu/meowtab/releases/latest/download/meowtab.zip).
-2. Unzip it into a folder of your own, such as Documents. Keep the folder together: the exe finds its pictures beside it.
-3. Double-click `meowtab.exe`, then hold **Alt** and press **Tab**. The first time, MeowTab asks whether to put an icon on your desktop (it opens the settings panel); either answer is remembered.
+**PowerShell install (Windows 11 x64, PowerShell 5.1 or 7):** copy this one-liner to install the latest release and start it. It needs no AutoHotkey, package manager, or administrator rights. The readable [install helper source](https://github.com/tingtmu/meowtab/blob/main/tools/install.ps1) downloads the ZIP and its checksum from the same release and verifies the ZIP before installing.
+
+```powershell
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/tingtmu/meowtab/main/tools/install.ps1').Content))
+```
+
+It installs to `%LOCALAPPDATA%\Programs\MeowTab`. To update, exit MeowTab from the tray and run the same command again. To launch it later in PowerShell, run `& "$env:LOCALAPPDATA\Programs\MeowTab\meowtab.exe"`. The installed release tag is in `.zip-install.json` in that folder; the executable's file version is another way to check it. To remove this helper-managed ZIP install, exit MeowTab and delete `%LOCALAPPDATA%\Programs\MeowTab`; settings and pictures remain in `%APPDATA%\MeowTab`. See [Remove MeowTab](#remove-meowtab) to remove user data too.
+
+AI agents: read the concise [installation and update guide](https://raw.githubusercontent.com/tingtmu/meowtab/main/llms.txt) for supported install methods and lifecycle instructions.
+
+**Manual ZIP install:** open the [latest release](https://github.com/tingtmu/meowtab/releases/latest). Its notes give hashes and virus-scan links (see [Check the download](#check-the-download)). Download `meowtab.zip` there, or from [this direct link](https://github.com/tingtmu/meowtab/releases/latest/download/meowtab.zip), unzip it into a folder of your own, and keep the folder together so the exe finds its pictures. Double-click `meowtab.exe`, then hold **Alt** and press **Tab**. The first time, MeowTab asks whether to put an icon on your desktop (it opens the settings panel); either answer is remembered.
 
 `meowtab-classic.exe` is the [other style](#two-styles). No AutoHotkey needed.
 
@@ -290,6 +298,7 @@ It needs AutoHotkey v2 (found in its usual install folders, or pass `-Base <path
 6. Update the packages:
    - Scoop: `& "$(scoop prefix scoop)\bin\checkver.ps1" -App meowtab -Dir .\bucket -Update` rewrites `bucket\meowtab.json` (version, URL, and the hash from `SHA256SUMS.txt`); commit and push it.
    - WinGet: `wingetcreate update tingtmu.MeowTab --urls https://github.com/tingtmu/meowtab/releases/download/vX.Y.Z/meowtab.zip --version X.Y.Z --submit` opens the pull request against `microsoft/winget-pkgs`.
+7. Review the Quick start and root `llms.txt` whenever install commands or WinGet's pending status change.
 
 ## Tests
 

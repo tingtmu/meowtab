@@ -1,0 +1,25 @@
+# MeowTab
+
+MeowTab is a Windows 11 Alt+Tab switcher with live window previews and a picture that peeks over the pane. The released executables need no AutoHotkey.
+
+## Install and update
+
+Windows 11 x64; PowerShell 5.1 or 7. For a fresh install, use this ZIP installer (no admin rights, AutoHotkey, or package manager needed):
+
+```powershell
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/tingtmu/meowtab/main/tools/install.ps1').Content))
+```
+
+It verifies `meowtab.zip` against `SHA256SUMS.txt` from the same release, installs to `%LOCALAPPDATA%\Programs\MeowTab`, then launches it. The [helper source](https://github.com/tingtmu/meowtab/blob/main/tools/install.ps1) is readable. Exit MeowTab from the tray before updating; rerun the same command.
+
+For an existing installation, identify and reuse its install method. If you cannot tell which method owns it, clarify before changing it; do not create a second copy. For Scoop, exit MeowTab, then run `scoop update` and `scoop update meowtab`. WinGet is pending approval and is not currently available.
+
+Scoop is also an available install alternative: `scoop bucket add meowtab https://github.com/tingtmu/meowtab`, then `scoop install meowtab/meowtab`. For a manual ZIP install, use the [latest release](https://github.com/tingtmu/meowtab/releases/latest) and keep the extracted app folder together.
+
+## Launch, version, and removal
+
+Launch later in PowerShell with `& "$env:LOCALAPPDATA\Programs\MeowTab\meowtab.exe"`. Check the installed tag with `(Get-Content "$env:LOCALAPPDATA\Programs\MeowTab\.zip-install.json" -Raw | ConvertFrom-Json).tag`; its `format` field is `meowtab-zip-v1`. The executable's file version also reports the version. To remove this helper-managed ZIP install, exit MeowTab and delete `%LOCALAPPDATA%\Programs\MeowTab`; this keeps settings and pictures in `%APPDATA%\MeowTab\settings.ini` and `%APPDATA%\MeowTab\images\`. The README has the [full removal guidance](https://github.com/tingtmu/meowtab#remove-meowtab).
+
+## Verify and read more
+
+Release notes provide ZIP hashes and VirusTotal reports. See [how to check the download and interpret unsigned executable warnings](https://github.com/tingtmu/meowtab#check-the-download). For manual ZIP installation and Scoop setup, see the [README Quick start and package-manager instructions](https://github.com/tingtmu/meowtab#quick-start).
