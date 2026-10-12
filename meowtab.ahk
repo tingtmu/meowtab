@@ -67,18 +67,17 @@ VELVET_R     := 14     ; tile corner radius
 VELVET_MAT   := 8      ; the tile's frame around its thumbnail, at the sides and the bottom (the header is above it)
 VELVET_LIFT  := 0.02, VELVET_LINE := 1.5, VELVET_SHADOW := 12   ; selection: tile and thumbnail this much larger; outline width; shadow blur
 VELVET_CLOSE := 22     ; close button: a circle this wide, in the middle of the Windows 11 look's square one
-VELVET_IN_MS := 120, VELVET_GLIDE_MS := 90   ; while Windows' "Animation effects" is on: the pane's ease-in, the selection's glide; ms
+VELVET_IN_MS := 120, VELVET_GLOW_MS := 100   ; while Windows' "Animation effects" is on: the pane's ease-in, the selection's light-up; ms
 ; tint: warm glass over the acrylic; lip: a highlight down the top
 ; padding, alpha at the edge; slot: the tile's frame; head / hot: the header's frost / the hovered header's wash, alpha at
-; its top, fading out down the header; close: the text colour's alpha on the close button's disc and X (red with the mouse
-; on it); shadow: under the selection, alpha at its densest; line: the outline, the accent mixed this far toward head's
-; colour; pane, text, ring, bar: as above; hair: none (only Inset reads it)
+; its top, fading out down the header; shadow: under the selection, alpha at its densest; line: the outline, the accent
+; mixed this far toward head's colour; pane, text, ring, bar: as above; hair: none (only Inset reads it)
 VELVET_LIGHT := {pane: "F3F3F3", text: "1A1714", ring: "005FB8", bar: ["000000", 114], hair: ["000000", 0]
     , tint: ["FFF3E2", 13], lip: ["FFFFFF", 80], slot: ["FFFDFA", 110], head: ["FFFFFF", 130], hot: ["5C4632", 52]
-    , close: [18, 150], shadow: ["3B2A1A", 96], line: 0.3}
+    , shadow: ["3B2A1A", 96], line: 0.3}
 VELVET_DARK  := {pane: "202020", text: "F5F1EB", ring: "4CC2FF", bar: ["FFFFFF", 139], hair: ["FFFFFF", 0]
     , tint: ["2B2825", 23], lip: ["FFFFFF", 22], slot: ["000000", 60], head: ["000000", 90], hot: ["FFF4E6", 46]
-    , close: [24, 160], shadow: ["000000", 160], line: 0.3}
+    , shadow: ["000000", 160], line: 0.3}
 ; ==========================================================================
 
 CoordMode "Mouse", "Screen"
@@ -101,7 +100,7 @@ global wins := [], idx := 0, cycling := false, opens := 0   ; listed windows (mo
 global grid := 0, tiles := []                  ; the open pane's layout (GridLayout) and one tile per window
 global thumbs := [], icons := Map(), surf := 0  ; per open: DWM thumbnails, app icons (hwnd -> [header, big]), drawing surface
 global velvetBase := 0                         ; Velvet: the surface's base layer, as big as it, kept between opens (VelvetRender)
-global motion := false, glide := 0, velvetIn := 0   ; Velvet's motion this open (Animates); the selection's glide (VelvetGlide); the ease-in's start
+global motion := false, glow := 0, velvetIn := 0   ; Velvet's motion this open (Animates); the selection's light-up (VelvetGlow); the ease-in's start
 global hover := 0, hoverX := false             ; tile under the mouse (0 = none), and whether on its close button
 global mouseAt := 0, pressAt := 0, clickAt := 0, wheel := 0, tracking := false   ; mouse input, noted for the timers (see PaneMouse)
 global barA := 0, barW := 0, barOn := false, barT := 0, barNearSeen := false, barGrab := -1   ; scroll bar: opacity 0-1, width px, shown

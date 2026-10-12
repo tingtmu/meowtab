@@ -48,7 +48,7 @@ DwmSet(h, attr, v) => DllCall("dwmapi\DwmSetWindowAttribute", "ptr", h, "uint", 
 ; accent). The new surface replaces the old one whole, so an erase in between always blits a finished one.
 PaneShow(x, y, fresh) {
     global surf, pal, accentRgb, hover, hoverX, mouseAt, motion
-    global glide := 0                              ; a new layout: no glide (Velvet's motion)
+    global glow := 0                               ; a new layout: no light-up (Velvet's motion)
     if fresh {                                     ; and the scroll bar shows on opening, when rows overflow
         pal := PANE_LOOK = "velvet" ? (dark ? VELVET_DARK : VELVET_LIGHT) : dark ? DARK_PAL : LIGHT_PAL   ; the look's, in Windows' mode
         accentRgb := AccentRing(), DwmSet(g.Hwnd, 20, dark)   ; IMMERSIVE_DARK_MODE: dark acrylic
@@ -71,7 +71,7 @@ PaneShow(x, y, fresh) {
 }
 
 PaneFree() {   ; on hide: everything one open made; a scroll stops where it is, the scroll bar's fade and drag too, Velvet's motion
-    global surf, icons, hover, hoverX, mouseAt, pressAt, clickAt, wheel, tracking, glide
+    global surf, icons, hover, hoverX, mouseAt, pressAt, clickAt, wheel, tracking, glow
     SetTimer(ScrollTick, 0), grid.goal := grid.off, BarReset(false)
     if motion                                      ; the ease-in, if still on its way
         VelvetEaseEnd()
@@ -81,7 +81,7 @@ PaneFree() {   ; on hide: everything one open made; a scroll stops where it is, 
             if bm
                 DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
     old := surf, surf := 0, icons := Map(), SurfaceFree(old)
-    hover := 0, hoverX := false, mouseAt := pressAt := clickAt := 0, wheel := 0, tracking := false, glide := 0
+    hover := 0, hoverX := false, mouseAt := pressAt := clickAt := 0, wheel := 0, tracking := false, glow := 0
 }
 
 ; ----- Surface: a pane-sized 32bpp DIB that GDI+ draws into as premultiplied ARGB (real alpha over the glass) -----
@@ -240,7 +240,7 @@ ScrollTo(goal) {
     ScrollTick()
 }
 
-; One frame, every one comes through here: a drag's step (BarDrag), the offset (ease-out cubic), Velvet's glide, the hover
+; One frame, every one comes through here: a drag's step (BarDrag), the offset (ease-out cubic), Velvet's light-up, the hover
 ; under the resting mouse, the scroll bar (BarStep), the thumbnails and the pixels, back to back. While the bar shows and the
 ; mouse isn't near it, each frame puts its fade off to BAR_SHOW_MS later. Stops itself once nothing moves any more.
 ScrollTick() {
@@ -257,11 +257,11 @@ ScrollTick() {
     }
     p := SCROLL_MS > 0 ? Min((A_TickCount - grid.t0) / SCROLL_MS, 1) : 1
     grid.off := Round(grid.from + (grid.goal - grid.from) * (1 - (1 - p) ** 3))   ; (a drag's step: from = goal = off)
-    if gliding := glide                            ; Velvet's selection on its way (VelvetGlide): this frame's step
-        VelvetGlideStep()
+    if glowing := glow                             ; Velvet's selection lighting up (VelvetGlow): this frame's step
+        VelvetGlowStep()
     hover := HitTest(Content(mouseAt), &onX), hoverX := onX
-    settled := BarStep() && grid.off = grid.goal && barGrab < 0 && !glide
-    if grid.off != was || gliding                  ; thumbnails move only with the view or a glide's lift (PaneShow places them after a re-layout)
+    settled := BarStep() && grid.off = grid.goal && barGrab < 0 && !glow
+    if grid.off != was || glowing                  ; thumbnails move only with the view or a light-up's lift (PaneShow places them after a re-layout)
         ThumbsShow()
     Render(surf), Present()
     if barOn && !BarNear()
@@ -282,15 +282,15 @@ Nearest(r, cx) {   ; the tile in row r whose centre is closest to cx
 
 SelectTile(i) {   ; the selection to tile i, scrolled into view if it isn't whole there (judged at the goal)
     global idx
-    if motion                                      ; Velvet's: it glides there from where it shows now
-        VelvetGlide(i)
+    if motion && i != idx                          ; Velvet's: it lights up in place there (VelvetGlow)
+        VelvetGlow()
     was := idx, idx := i
+    if PANE_LOOK = "velvet" && !motion             ; Velvet's lift moves to the new one now (a scroll's first frame doesn't move
+        VelvetRelift(was)                          ; the thumbnails; the light-up's frames all do)
     if (to := Reveal(i)) != grid.goal
         return ScrollTo(to)                        ; its first frame draws the selection
-    if motion                                      ; no scroll: the glide's frames all the same, the first one now
+    if motion                                      ; no scroll: the light-up's frames all the same, the first one now
         return (SetTimer(ScrollTick, ANIM_TICK), ScrollTick())
-    if PANE_LOOK = "velvet"                        ; no scroll places the thumbnails: Velvet's lift moves to the new one
-        VelvetRelift(was)
     Render(surf), Present()
 }
 
@@ -306,7 +306,9 @@ KeepInView(goal) {
             best := k
     if !best
         best := Min(Max(Round((goal + (grid.h - grid.th) / 2 - grid.pad) / (grid.th + grid.gap)) + 1, 1), grid.rows.Length)
-    idx := Nearest(best, tiles[idx].x + tiles[idx].w / 2)
+    was := idx, idx := Nearest(best, tiles[idx].x + tiles[idx].w / 2)
+    if PANE_LOOK = "velvet"                        ; Velvet's lift moves to the new one now, before the scroll's first frame
+        VelvetRelift(was)
 }
 
 ; ----- Scroll bar, only while rows overflow: a thumb in the right padding, drawn in our surface (DrawBar). Its width

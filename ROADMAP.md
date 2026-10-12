@@ -25,7 +25,7 @@ Code map: `meowtab.ahk` holds settings, hotkeys and switching; `alttab-native.ah
 
 ## 3. The "Velvet" look, and whether to offer a choice
 
-**Done**: the settings panel's new **LOOK** section picks between two looks on two picture cards, both following Windows' light and dark mode: **Velvet** (the default) and **Windows 11** (the faithful copy of Windows' own switcher). **Save** applies the pick. Velvet is softer and warmer up close: clear, faintly warm glass (a faint tint over the acrylic), rounder tiles with matted thumbnails, a lifted selection with a soft accent outline instead of the ring, and rows cut by the pane's edge that fade out. Its motion (the pane easing in, the selection gliding, the picture settling with a small bounce) follows Windows' "Animation effects" setting: with it off, nothing moves. The settings panel no longer shrinks to fit: it always shows at full size, and its sections scroll under a bar fixed at the bottom with the hint line and the buttons.
+**Done**: the settings panel's new **LOOK** section picks between two looks on two picture cards, both following Windows' light and dark mode: **Velvet** (the default) and **Windows 11** (the faithful copy of Windows' own switcher). **Save** applies the pick. Velvet is softer and warmer up close: clear, faintly warm glass (a faint tint over the acrylic), rounder tiles with matted thumbnails, a lifted selection with a soft accent outline instead of the ring, and rows cut by the pane's edge that fade out. Its motion (the pane easing in, the selection lighting up in place, the picture settling with a small bounce) follows Windows' "Animation effects" setting: with it off, nothing moves. The settings panel no longer shrinks to fit: it always shows at full size, and its sections scroll under a bar fixed at the bottom with the hint line and the buttons.
 
 **Later**: the classic list switcher (`meowtab-classic.ahk`) could be folded into the LOOK section as a third look, "List". That would leave one exe and one tray icon instead of two separate apps, and simplify releases. The catch: two options in one control isn't overwhelming, but three or more would be.
 
@@ -35,11 +35,11 @@ The 0.1 preview already feels smooth, so this is a guardrail, not a project. Bud
 
 | What | Budget | Measured |
 | --- | --- | --- |
-| Alt+Tab to pane visible | ≤ 30 ms | 0.1: under 16 ms per open. 30 windows: 15 ms median, 28 ms max |
-| Moving the selection (full redraw) | ≤ 4 ms | 0.1: about 1.6 ms for 20 tiles at 100 %. 30 windows at 150 %: 4.7 ms median (6.9 ms before the grid) |
-| A scroll frame (keys, wheel, drag) | ≤ 8 ms | 30 windows: about 5 ms median; up to 4 % of frames over 8 ms, the worst 15-29 ms |
+| Alt+Tab to pane visible | ≤ 30 ms | 0.1: under 16 ms per open. 30 windows: 15 ms median, 28 ms max. Local screen: 15–21 ms median in either look; now and then one over 30 ms, in both looks and before Velvet's last change too |
+| Moving the selection (full redraw) | ≤ 4 ms | 0.1: about 1.6 ms for 20 tiles at 100 %. 30 windows at 150 %: 4.7 ms median (6.9 ms before the grid). Local screen, 30 windows: 4.6 ms in the Windows 11 look, 6.5 ms in Velvet |
+| A scroll frame (keys, wheel, drag) | ≤ 8 ms | 30 windows: about 5 ms median; up to 4 % of frames over 8 ms, the worst 15-29 ms. Local screen: 5.5–5.8 ms median in the Windows 11 look, 6.3–7.2 ms in Velvet |
 | While closed | no timers, 0 % CPU | only the window-activation hook |
-| 200 opens | no growth in GDI / USER handles or memory | flat |
+| 200 opens | no growth in GDI / USER handles or memory | flat (also in Velvet with its motion, at the local screen) |
 
 When adding Velvet effects, cache what doesn't change per frame (tint, header backgrounds) instead of re-rendering it. Measure with `QueryPerformanceCounter` before and after. If an effect breaks a budget, drop or simplify it.
 
@@ -47,8 +47,10 @@ When adding Velvet effects, cache what doesn't change per frame (tint, header ba
 - **Measured** over Remote Desktop with 30 windows at 150 %, against the Windows 11 look:
   - about 3 ms more per open (15.8 ms against 12.6);
   - 1.1–1.5 ms more per frame (a Tab step is 6.2 ms against 4.8).
+- **At the local screen (2026-10-12)**, with the selection lighting up in place (it used to glide), a Tab step is 6.5 ms against 4.6, about 1.9 ms more. The light-up costs about 0.5 ms of that, and the author accepted it.
 - **Budgets:** Velvet keeps the open and scroll-frame budgets. At this load both looks already miss the step budget. Its base layer (tint, highlight) is already kept between opens.
 - **Next, when this item is picked up:**
+  - while the selection lights up, move only its tile's thumbnail, not every one;
   - cache each tile's unchanging pixels (frame, frost, icon, title), so a frame redraws only the hover and the selection;
   - cache the cut-row fade's per-frame brushes;
   - compare the looks with `tools\checks\run.ps1 timing -Look velvet` and `-Look windows11`.

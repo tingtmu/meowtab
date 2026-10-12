@@ -15,7 +15,7 @@ VelvetRender(s) {
     VelvetClip(s.gr), frost := VelvetFrost()
     for i, t in tiles
         if i != idx && InView(t)
-            VelvetLifted(s.gr, i, t, frost)        ; (the tile a glide leaves still a little lifted)
+            VelvetTile(s.gr, i, t, frost)
     if idx && InView(tiles[idx])
         VelvetSelection(s.gr, tiles[idx], frost)
     DllCall("gdiplus\GdipDeleteBrush", "ptr", frost), DllCall("gdiplus\GdipResetClip", "ptr", s.gr)
@@ -160,14 +160,13 @@ VelvetTitle(gr, s, x, y, w, h, br) {   ; Title's, with a brush (in a cut row, fa
     DllCall("gdiplus\GdipDrawString", "ptr", gr, "wstr", s, "int", -1, "ptr", titleFont, "ptr", rc, "ptr", titleFmt, "ptr", br)
 }
 
-; The close button in the hovered header's right end (x, y, w, h: the Windows 11 look's square one): a round disc, muted (the
-; text colour at low alpha) with a grey X; red with a white X while the mouse is on it (VelvetOnClose).
+; The close button in the hovered header's right end (x, y, w, h: the Windows 11 look's square one): a round red disc with a
+; white X, soft (alpha 200, about 78 %); full red while the mouse is on it (VelvetOnClose).
 VelvetClose(gr, x, y, w, h) {
     S := grid.S, rd := VELVET_CLOSE * S / 2, d := CLOSE_X * S / 3, cx := x + w / 2, cy := y + h / 2, m := VelvetFade(cy)
-    DllCall("gdiplus\GdipCreateSolidFill", "uint", hoverX ? Argb(CLOSE_RGB, Round(255 * m)) : Argb(pal.text, Round(pal.close[1] * m)), "ptr*", &br := 0)
+    DllCall("gdiplus\GdipCreateSolidFill", "uint", Argb(CLOSE_RGB, Round((hoverX ? 255 : 200) * m)), "ptr*", &br := 0)
     DllCall("gdiplus\GdipFillEllipse", "ptr", gr, "ptr", br, "float", cx - rd, "float", cy - rd, "float", 2 * rd, "float", 2 * rd)
-    DllCall("gdiplus\GdipCreatePen1", "uint", hoverX ? Argb("FFFFFF", Round(255 * m)) : Argb(pal.text, Round(pal.close[2] * m))
-        , "float", CLOSE_LINE * S, "int", 2, "ptr*", &pen := 0)   ; UnitPixel
+    DllCall("gdiplus\GdipCreatePen1", "uint", Argb("FFFFFF", Round(255 * m)), "float", CLOSE_LINE * S, "int", 2, "ptr*", &pen := 0)   ; UnitPixel
     DllCall("gdiplus\GdipDrawLine", "ptr", gr, "ptr", pen, "float", cx - d, "float", cy - d, "float", cx + d, "float", cy + d)
     DllCall("gdiplus\GdipDrawLine", "ptr", gr, "ptr", pen, "float", cx - d, "float", cy + d, "float", cx + d, "float", cy - d)
     DllCall("gdiplus\GdipDeletePen", "ptr", pen), DllCall("gdiplus\GdipDeleteBrush", "ptr", br)
@@ -179,22 +178,22 @@ VelvetOnClose(pt, t) => (pt[1] - t.x - t.w + CloseW(t) / 2) ** 2 + (pt[2] - t.y 
 
 ; ----- The selection, lifted -----
 
-; The selected tile t: a soft shadow around its frame (VelvetShade; VelvetFrame: t's, or gliding to it), the tile at its lift
-; (VELVET_LIFT larger around its centre once there; VelvetBox lifts its thumbnail alike), and a thin outline of the accent mixed
-; toward the header's colour, round the frame as lifted. In the fade (a cut row) the shadow and the outline fade as the close
-; button does, at the frame's centre: no crisp ring round a fading tile.
+; The selected tile t: a soft shadow around its frame (VelvetShade), the tile at its lift (VELVET_LIFT larger around its centre
+; once lit up; VelvetBox lifts its thumbnail alike), and a thin outline of the accent mixed toward the header's colour, round
+; the frame as lifted. While it lights up (VelvetGlow) the shadow and the outline rise from 40 % to full; in the fade (a cut
+; row) they fade as the close button does, at the frame's centre: no crisp ring round a fading tile.
 VelvetSelection(gr, t, frost) {
-    S := grid.S, k := 1 + VELVET_LIFT, f := VelvetFrame(), cx := f[1] + f[3] / 2, cy := f[2] - grid.off + grid.th / 2, r := Round(VELVET_R * S)
-    w := f[3] * k, h := grid.th * k, x := cx - w / 2, y := cy - h / 2, sh := VelvetShade(t.w * k, h), frame := RoundPath(x, y, w, h, r * k)
-    m := VelvetFade(cy)
+    S := grid.S, k := 1 + VELVET_LIFT, cx := t.x + t.w / 2, cy := TileY(t) + grid.th / 2, r := Round(VELVET_R * S)
+    w := t.w * k, h := grid.th * k, x := cx - w / 2, y := cy - h / 2, sh := VelvetShade(w, h), frame := RoundPath(x, y, w, h, r * k)
+    m := VelvetFade(cy) * (glow ? 0.4 + 0.6 * glow.e : 1)
     DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", frame, "int", 4)   ; CombineModeExclude: only around the frame (a tile's fills let it through)
     DllCall("gdiplus\GdipDrawImageRectRectI", "ptr", gr, "ptr", sh.bm, "int", Round(x - sh.o), "int", Round(y - sh.o)   ; whole px: no resampling
-        , "int", sh.w + Round(w - t.w * k), "int", sh.h, "int", 0, "int", 0, "int", sh.w, "int", sh.h   ; (gliding: t's stretched to the frame)
+        , "int", sh.w, "int", sh.h, "int", 0, "int", 0, "int", sh.w, "int", sh.h
         , "int", 2, "ptr", m < 1 ? VelvetAlpha(m) : 0, "ptr", 0, "ptr", 0)   ; UnitPixel
     DllCall("gdiplus\GdipDeletePath", "ptr", frame)
     VelvetClip(gr), VelvetLifted(gr, idx, t, frost)
     VelvetScale(gr, cx, cy, k), lw := VELVET_LINE * S
-    Outline(gr, f[1], cy - grid.th / 2, f[3], grid.th, r, lw / 2, lw, Argb(Mix(accentRgb, pal.head[1], pal.line), Round(255 * m)))
+    Outline(gr, t.x, cy - grid.th / 2, t.w, grid.th, r, lw / 2, lw, Argb(Mix(accentRgb, pal.head[1], pal.line), Round(255 * m)))
     DllCall("gdiplus\GdipResetWorldTransform", "ptr", gr)
 }
 
@@ -243,7 +242,7 @@ VelvetBox(t, &x, &y, &w, &h) {
     x := cx + (x - cx) * k, y := cy + (y - cy) * k, w *= k, h *= k
 }
 
-VelvetRelift(was) {   ; the selection moved with no scroll: tile was's thumbnail back to its size, the selected one's lifted
+VelvetRelift(was) {   ; the selection moved (before any scroll frame): tile was's thumbnail back to its size, the selected one's lifted
     for i in [was, idx]
         if i && tiles[i].on
             ThumbPlace(tiles[i], TileY(tiles[i]) + grid.hdr, Inset())
@@ -280,33 +279,22 @@ VelvetEaseEnd() {
         DllCall("RedrawWindow", "ptr", g.Hwnd, "ptr", 0, "ptr", 0, "uint", 0x585)   ; INVALIDATE|ERASE|ALLCHILDREN|UPDATENOW|FRAME
 }
 
-; Tab and the arrows, before the selection moves (SelectTile): it glides to tile i over VELVET_GLIDE_MS from where it shows now,
-; mid-glide too, easing out as the scroll does, on ScrollTick's frames (VelvetGlideStep). Its frame is kept in content px, so a
-; scroll moves it along; the lift passes from the tile it leaves to tile i, each starting from the lift it has now.
-VelvetGlide(i) {
-    global glide
-    f := VelvetFrame()
-    glide := {x: f[1], y: f[2], w: f[3], t0: A_TickCount, e: 0, was: idx, up: VelvetLift(tiles[i]), down: VelvetLift(tiles[idx])}
+; Tab and the arrows, as the selection moves to another tile (SelectTile): it lights up in place there, its outline and shadow
+; from 40 % to full and the tile into its lift over VELVET_GLOW_MS, easing out as the scroll does, on ScrollTick's frames
+; (VelvetGlowStep); the tile it leaves settles at once. A new step starts it again on its new tile.
+VelvetGlow() {
+    global glow := {t0: A_TickCount, e: 0}
 }
 
-VelvetGlideStep() {   ; one of ScrollTick's frames: the glide's ease now; there, no glide
-    global glide
-    p := Min((A_TickCount - glide.t0) / VELVET_GLIDE_MS, 1), glide.e := 1 - (1 - p) ** 3
+VelvetGlowStep() {   ; one of ScrollTick's frames: the light-up's ease now; there, no light-up
+    global glow
+    p := Min((A_TickCount - glow.t0) / VELVET_GLOW_MS, 1), glow.e := 1 - (1 - p) ** 3
     if p >= 1
-        glide := 0
+        glow := 0
 }
 
-VelvetFrame() {   ; the selection's frame now, [x, y, w] in content px (a tile tall): the selected tile's, or on its way there
-    t := tiles[idx]
-    if !glide
-        return [t.x, t.y, t.w]
-    return [glide.x + (t.x - glide.x) * glide.e, glide.y + (t.y - glide.y) * glide.e, glide.w + (t.w - glide.w) * glide.e]
-}
-
-VelvetLift(t) {   ; tile t's lift now, 0 .. VELVET_LIFT: the selected one's; while the selection glides, it rises as the tile left settles
-    if !idx
+VelvetLift(t) {   ; tile t's lift now, 0 .. VELVET_LIFT: the selected one's, growing into it while it lights up
+    if !idx || ObjPtr(t) != ObjPtr(tiles[idx])
         return 0
-    if ObjPtr(t) = ObjPtr(tiles[idx])
-        return glide ? glide.up + (VELVET_LIFT - glide.up) * glide.e : VELVET_LIFT
-    return glide && ObjPtr(t) = ObjPtr(tiles[glide.was]) ? glide.down * (1 - glide.e) : 0
+    return glow ? VELVET_LIFT * glow.e : VELVET_LIFT
 }
