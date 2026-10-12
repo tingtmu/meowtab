@@ -52,6 +52,13 @@ TestOrder() {
     return Trim(order)
 }
 
+Listed(hwnd) {   ; is window hwnd in the list Alt+Tab would show now?
+    for w in CollectWindows()
+        if w = hwnd
+            return true
+    return false
+}
+
 ; Send the pane a left click (WM_LBUTTONDOWN + UP) on window hwnd's tile: its centre, or with onX its close button,
 ; where it shows at the offset now (TileY). between: run between the press and the release, e.g. a scroll.
 ClickTile(hwnd, onX := false, between := 0) {
@@ -257,6 +264,7 @@ Whole(ctl) => (ctl.GetPos(, &y, , &h), y >= pnl.off && y + h <= pnl.off + pnl.vi
 
 ; settings.ini's shortcut lines ("" = none).
 KeysLines() => Trim(IniRead(DATA_DIR "\settings.ini", "settings", "SWITCH_KEYS", "") " " IniRead(DATA_DIR "\settings.ini", "settings", "STAY_KEYS", ""))
+Ini(k) => IniRead(DATA_DIR "\settings.ini", "settings", k, "")   ; settings.ini's line for k ("" = none)
 
 ; The open panel's LOOK cards whose painter, run as WM_DRAWITEM runs it, draws the pick's check: its accent disc in the well's
 ; corner (PaintLook), read above the check itself.
@@ -271,6 +279,22 @@ Marked() {
         }
     DllCall("DeleteDC", "ptr", dc), DllCall("ReleaseDC", "ptr", 0, "ptr", sdc)
     return Trim(s)
+}
+
+Tick() {   ; the open settings panel's WINDOWS tick box (its element)
+    for hwnd, e in pnl.el
+        if e.kind = "tick"
+            return e
+}
+
+; The open panel's WINDOWS tick box as its painter, run as WM_DRAWITEM runs it, draws it: "ticked" if its box is the accent,
+; read between the box's top and the check (PaintTick), else "unticked".
+TickBox() {
+    e := Tick(), sdc := DllCall("GetDC", "ptr", 0, "ptr"), dc := DllCall("CreateCompatibleDC", "ptr", sdc, "ptr")
+    bm := DllCall("CreateCompatibleBitmap", "ptr", sdc, "int", e.w, "int", e.h, "ptr"), ob := DllCall("SelectObject", "ptr", dc, "ptr", bm, "ptr")
+    paint := e.paint, paint(dc, e.w, e.h, 0), c := DllCall("GetPixel", "ptr", dc, "int", Dpx(6) + Dpx(9), "int", (e.h - Dpx(18)) // 2 + Dpx(4), "uint")
+    DllCall("SelectObject", "ptr", dc, "ptr", ob), DllCall("DeleteObject", "ptr", bm), DllCall("DeleteDC", "ptr", dc), DllCall("ReleaseDC", "ptr", 0, "ptr", sdc)
+    return c = Bgr(LOOK.accent) ? "ticked" : "unticked"
 }
 
 WatchDraw(wParam, lParam, *) {   ; WM_DRAWITEM, ahead of the panel's own handler: the elements drawn (drawnEls)
@@ -328,9 +352,32 @@ Step(1), live := thumbs.Length, Finish(false), Wait(0)   ; same line: WatchAlt c
 Check("preview thumbnails registered while cycling", live > 0, true)
 Check("preview thumbnails released after Finish", thumbs.Length, 0)
 
+; MONITORS: every monitor's windows (all, the default), or only those on the active window's monitor (current), where A-D are.
+; A window shown on another monitor is listed under all and not under current; skipped with one monitor, or if a tiling WM
+; keeps it on this one.
+MONITORS := "current", cur := TestOrder(), MONITORS := "all"
+Check("MONITORS=current lists A-D, on the active window's monitor, as all does", cur, TestOrder())
+if MonitorGetCount() < 2
+    Check("a window on another monitor is listed under all, not under current: skipped, one monitor", "", "")
+else {
+    here := DllCall("MonitorFromWindow", "ptr", WinExist("A"), "uint", 2, "ptr")
+    Loop MonitorGetCount() {                   ; the first monitor that isn't the active window's
+        MonitorGetWorkArea(A_Index, &ml, &mt)
+        if DllCall("MonitorFromPoint", "int64", ((mt + 100) << 32) | ((ml + 100) & 0xFFFFFFFF), "uint", 2, "ptr") != here
+            break
+    }
+    m := Gui(, "alttab-test M"), m.Show("NA x" ml + 100 " y" mt + 100 " w300 h200"), Sleep(300), Act(h["D"])   ; D again, should a tiling WM focus M
+    away := DllCall("MonitorFromWindow", "ptr", m.Hwnd, "uint", 2, "ptr") != here
+    all := Listed(m.Hwnd), MONITORS := "current", cur := Listed(m.Hwnd), MONITORS := "all", m.Destroy(), Act(h["D"])   ; recency D A B C
+    if away
+        Check("a window on another monitor is listed under all (1), not under current (0)", all " " cur, "1 0")
+    else
+        Check("a window on another monitor is listed under all, not under current: skipped, a tiling WM kept it on this one", "", "")
+}
+
 t := Gui("+ToolWindow", "alttab-test tool")   ; not Alt+Tab-eligible, so not in the list
-WinGetPos(&ax, &ay, , , h["A"])                ; on A's monitor: a tiling WM may put A-D on another one than the
-t.Show("x" ax + 20 " y" ay + 20 " w200 h100"), guis.Push(t)   ; tool window's default, and only this monitor is listed
+WinGetPos(&ax, &ay, , , h["A"])                ; on A's monitor, as MONITORS=current would need: a tiling WM may put A-D on
+t.Show("x" ax + 20 " y" ay + 20 " w200 h100"), guis.Push(t)   ; another one than the tool window's default
 Act(t.Hwnd)                                ; recency of A-D is now: D A B C
 Step(1), Finish(true), Wait(300)
 Check("Alt+Tab from non-listed window goes to 1st (D)", names.Get(WinExist("A"), "?"), "D")
@@ -576,6 +623,15 @@ Check("PANE_LOOK=glass in settings.ini: a reload gives the default look and repo
     , PANE_LOOK ", " SETTINGS_ISSUES.Length ": " (SETTINGS_ISSUES.Length ? SETTINGS_ISSUES[1] : "")
     , lookDefault ", 1: PANE_LOOK = glass: expected velvet or windows11, using " lookDefault)
 PANE_LOOK := runLook, A_Args.Length ? IniWrite(runLook, DATA_DIR "\settings.ini", "settings", "PANE_LOOK") : IniDelete(DATA_DIR "\settings.ini", "settings", "PANE_LOOK")   ; this run's look again
+IniWrite "curent", DATA_DIR "\settings.ini", "settings", "MONITORS"
+SettingsLoad()                             ; a reload from the built-in all
+Check("MONITORS=curent in settings.ini: a reload lists all monitors and reports the line"
+    , MONITORS ", " SETTINGS_ISSUES.Length ": " (SETTINGS_ISSUES.Length ? SETTINGS_ISSUES[1] : "")
+    , "all, 1: MONITORS = curent: expected all or current, using all")
+IniWrite "CURRENT", DATA_DIR "\settings.ini", "settings", "MONITORS"
+SettingsLoad()
+Check("MONITORS=CURRENT in settings.ini reads as current", MONITORS ", " SETTINGS_ISSUES.Length, "current, 0")
+MONITORS := "all", IniDelete(DATA_DIR "\settings.ini", "settings", "MONITORS")   ; the built-in again
 
 ; Shortcuts: SWITCH_KEYS / STAY_KEYS as settings.ini has them (KeysParse), registered by KeysRegister. Custom ones are
 ; checked holding Ctrl: if a check goes wrong, a held Win or Alt could open Start or a menu bar.
@@ -694,12 +750,9 @@ DllCall("SendMessageW", "ptr", pnl.page.Hwnd, "uint", 0x20A, "ptr", 0xFF880000, 
 WinGetPos(, &py, , , pnl.page), WinGetPos(, &vy, , , pnl.view)
 Check("a wheel notch scrolls the page up in its view, and Save stays put", pnl.off " " (vy - py) " " SaveAt()
     , Min(Dpx(60), pnl.end) " " Min(Dpx(60), pnl.end) " " save)
-for hwnd, e in pnl.el
-    if e.kind = "step" && e.i = 4                 ; the text size, just before the shortcut fields
-        size := e.ctl
-Act(pnl.gui.Hwnd), size.Focus(), Wait(100), was := Whole(Field(1))
+Act(pnl.gui.Hwnd), Tick().ctl.Focus(), Wait(100), was := Whole(Field(1))   ; the WINDOWS tick box, just before the shortcut fields
 Press("{Tab}")
-Check("Tab from the text size to the hidden switch field scrolls it into view, whole", was " " (DllCall("GetFocus", "ptr") = Field(1).Hwnd) " " Whole(Field(1)), "0 1 1")
+Check("Tab from the WINDOWS tick box to the hidden switch field scrolls it into view, whole", was " " (DllCall("GetFocus", "ptr") = Field(1).Hwnd) " " Whole(Field(1)), "0 1 1")
 PanelClose(), PANEL_ROOM := Dpx(3000)
 SettingsOpen(), Wait(500), save := SaveAt()
 DllCall("SendMessageW", "ptr", pnl.page.Hwnd, "uint", 0x20A, "ptr", 0xFF880000, "ptr", 0), Wait(100)
@@ -780,26 +833,37 @@ for lk in [other, runLook] {                      ; the click picked the other l
 }
 Check("then Space on the " runLook " card picks it back. Save's values carry each pick, and settings.ini holds it as PANE_LOOK"
     . ", but no line for the built-in look (" lookDefault ")", got, want)
+; The WINDOWS tick box (read off its painted box: TickBox): opened unticked, as MONITORS is all; Space ticks it and a click
+; unticks it, Save's values and settings.ini following. Reset to defaults clears it; the panel opens ticked under current.
+got := TickBox(), Act(pnl.gui.Hwnd), Tick().ctl.Focus(), Press("{Space}")
+SettingsWrite(PanelVals()), got .= "; Space: " TickBox() " " PanelVals()["MONITORS"] " [" Ini("MONITORS") "]"
+ControlClick(Tick().ctl), Wait(100)
+SettingsWrite(PanelVals()), got .= "; a click: " TickBox() " " PanelVals()["MONITORS"] " [" Ini("MONITORS") "]"
+Check("the WINDOWS tick box opens unticked; Space ticks it, and Save's values put MONITORS=current in settings.ini; a click unticks it, and no MONITORS line is left"
+    , got, "unticked; Space: ticked current [current]; a click: unticked all []")
+Press("{Space}"), SettingsWrite(PanelVals()), was := Ini("MONITORS"), err := SettingsReset()   ; ticked and saved, then Reset (PanelReset's file work)
+PanelClose(), MONITORS := "current", SettingsOpen(), Wait(300), got := TickBox(), MONITORS := "all"
+Check("Reset to defaults leaves no MONITORS line, and the panel opens ticked when MONITORS is current", was " -> " err "[" Ini("MONITORS") "], " got, "current -> [], ticked")
 PanelClose(), PANEL_ROOM := 0
 #Include %A_LineFile%\..\gif-panel.ahk
 ; Classic's own panel, opened by Classic in a process of its own on a data folder of its own: no LOOK section, as Classic has
-; no PANE_LOOK (the panel shows the section where the script defines it).
+; no PANE_LOOK (the panel shows the section where the script defines it), but the WINDOWS one, its label and tick box.
 classic := DATA_DIR "\classic-panel.ahk", answer := DATA_DIR "\classic-panel.txt"
 FileOpen(classic, "w").Write("#NoTrayIcon`nOnError((e, *) => (FileAppend('error: ' e.Message, A_Args[1]), ExitApp(3)))`n"
     . "DATA_DIR := A_ScriptDir '\classic'`n#Include " AppDir() "meowtab-classic.ahk`n" "
 (
-SettingsOpen(), n := 0
+SettingsOpen(), n := 0, t := 0
 for hwnd, e in pnl.el
-    n += e.kind = 'look'
+    n += e.kind = 'look', t += e.kind = 'tick'
 for l in pnl.labels
-    n += l[1] = 'LOOK'
-FileAppend(n ' LOOK elements, ' pnl.cards.Length ' picture cards', A_Args[1]), ExitApp()
+    n += l[1] = 'LOOK', t += l[1] = 'WINDOWS'
+FileAppend(n ' LOOK elements, ' t ' WINDOWS elements, ' pnl.cards.Length ' picture cards', A_Args[1]), ExitApp()
 )")
 Run('"' A_AhkPath '" /ErrorStdOut "' classic '" "' answer '"', , , &pid)
 if stuck := ProcessWaitClose(pid, 10)             ; still running after 10 s: an error dialog on its way out holds it
     ProcessClose(pid)
-Check("Classic's own panel has no LOOK section, and Classic exits with it open without an error"
-    , (FileExist(answer) ? FileRead(answer) : "no answer") (stuck ? ", then stuck" : ""), "0 LOOK elements, 3 picture cards")
+Check("Classic's own panel has no LOOK section but the WINDOWS one, and Classic exits with it open without an error"
+    , (FileExist(answer) ? FileRead(answer) : "no answer") (stuck ? ", then stuck" : ""), "0 LOOK elements, 2 WINDOWS elements, 3 picture cards")
 
 for w in guis
     w.Destroy()

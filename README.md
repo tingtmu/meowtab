@@ -65,7 +65,7 @@ MeowTab ships one, `chill.gif`, in its `images` folder (the PNG cats stay the de
 
 - **Your own pictures.** Pick or drop them in the settings panel. **Clean background** cuts out a plain light background and crops to a square, built in.
 - **Keyboard and mouse.** Tab and the arrow keys move through the grid (Up and Down change rows), Delete closes a window and keeps the switcher open, Esc cancels. Hover a tile for its close button; click a tile to switch to it.
-- **Your current screen only.** Only windows on the focused monitor are listed, most recently used first. Windows hides windows on other virtual desktops, and tiling window managers such as GlazeWM hide other workspaces, so this means the desktop or workspace you're on. Recency comes from window activations, not stacking order, so a re-tile doesn't shuffle the list.
+- **Every monitor, like Windows 11.** The windows of all your monitors are listed, most recently used first, and the pane opens on the active window's monitor (else the cursor's). Windows hides windows on other virtual desktops, and tiling window managers such as GlazeWM hide other workspaces, so this means the desktop you're on and the workspaces your monitors show. Recency comes from window activations, not stacking order, so a re-tile doesn't shuffle the list. To list only the monitor the pane opens on, tick **Only this monitor's windows** in the settings panel.
 - **Readable titles in any language.** Titles use Noto Sans TC when it's installed (clear for mixed Chinese and English), otherwise Segoe UI. Any installed font works, set from the settings panel.
 
 ## Requirements
@@ -188,6 +188,7 @@ Double-click the tray icon, or right-click it and choose **Settings…**. The de
 - **Look.** Two cards, **Velvet** (softer and warmer up close: warm glass, rounder tiles, a lifted selection) and **Windows 11** (as Windows draws it), each a small picture of the switcher in that look, in your Windows mode and accent colour. Click a card, or press Space on it, to pick it: a check marks the picked look, and **in use** the one MeowTab has now. The peek scenes and the title sample show the picked look at once, and **Save** applies it. `meowtab-classic` has no Look section.
   Velvet's motion (the pane easing in, the selection lighting up in place, the picture settling with a small bounce) follows Windows' **Animation effects** setting (Settings > Accessibility > Visual effects): with it off, nothing moves. A GIF in the peek, in both looks, and on the panel's cards follows the same setting: with it off, it shows its first frame, still.
 - **Title font.** Any installed font, at 10 to 24 pt.
+- **Windows.** One tick box, **Only this monitor's windows**. Ticked, the switcher lists only the windows on the monitor the pane opens on; unticked (the default), it lists every monitor's.
 - **Shortcuts.** Click **Switch windows** or **Stay open**, then press the new combination; **Esc** keeps the old one. Switching takes Alt, Ctrl or Win with one key, and the same with Shift goes back (shown under it). A combination that can't work, such as one with Esc or the arrows or one already in use, is refused, and the line under the cards says why. **Defaults** puts back Alt+Tab and Ctrl+Alt+Tab. `meowtab-classic` has no Shortcuts section.
 
 The panel always shows at full size. Where the screen has less room than it needs, its sections scroll under a bar that stays at the bottom, with the hint line and the buttons: turn the mouse wheel over the panel or drag the thin scroll bar on its right, and a field you Tab to scrolls into view.
@@ -235,6 +236,7 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 | `SWITCH_KEYS` | `Alt+Tab` | main | panel | The switcher's shortcut: Alt, Ctrl or Win held with one key; with Shift it goes back. |
 | `STAY_KEYS` | `Ctrl+Alt+Tab` | main | panel | Opens the switcher that stays open once you let go. |
 | `PANE_LOOK` | `velvet` | main | panel | The switcher's look: `velvet` or `windows11`. |
+| `MONITORS` | `all` | both | panel | Which monitors' windows are listed: `all`, or `current` for only the monitor the pane opens on (any letter case; the panel's **Only this monitor's windows**). |
 | `IMG_SIZE` | `250` / `100` | main / classic | ini | Picture size in pixels. Each GIF frame is kept decoded, so long GIFs on every mood take about 75 MB at the default 250 and about 430 MB at the maximum 600 (three 100-frame GIFs). |
 | `WM_PROCESS` | empty | both | ini | Exit when this process is gone, e.g. `glazewm.exe`. |
 | `LIST_WIDTH` | `700` | classic | ini | List width in pixels. |
@@ -321,7 +323,7 @@ Its argument is the look to test in: `velvet` as above, or `windows11`. Without 
 ## Known issues
 
 - Preview corners are square at the bottom (Windows' own are rounded).
-- Only the focused monitor's windows are listed, so on a monitor without windows Alt+Tab does nothing.
+- With **Only this monitor's windows** ticked (`MONITORS=current`), Alt+Tab does nothing on a monitor without windows.
 
 ## Roadmap
 

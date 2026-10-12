@@ -5,8 +5,8 @@
 ;@Ahk2Exe-SetVersion 0.3.0
 ;@Ahk2Exe-SetCopyright MIT`, tingwei
 ;@Ahk2Exe-SetMainIcon assets\meowtab.ico
-; Alt+Tab limited to the focused monitor. Windows cloaks windows on other virtual desktops, and
-; tiling WMs like GlazeWM cloak hidden workspaces, so this == "current desktop / workspace".
+; Alt+Tab over every monitor's windows (or the focused one's: MONITORS). Windows cloaks windows on other virtual desktops, and
+; tiling WMs like GlazeWM cloak hidden workspaces, so this == "current desktop / the workspaces shown".
 ; Hold Alt, press Tab / Shift+Tab to move, release Alt to switch, Esc to cancel.
 
 ; ===== Settings: built-in defaults. Tray icon > Settings… saves overrides to settings.ini, which wins. =====
@@ -24,6 +24,7 @@ MANY_FROM  := 8       ; many = MANY_FROM and up (2 <= SOME_FROM < MANY_FROM <= 3
 IMG_SIZE   := 100     ; mood image in the bottom-left corner, in pixels
 IMG_ROWS   := 12      ; pane is tall enough that the list covers the image only beyond this many windows
 WM_PROCESS := ""      ; optional: script exits when this process is gone, e.g. "glazewm.exe" ("" = never)
+MONITORS   := "all"   ; the windows listed: "all" monitors' or only the "current" one's (the monitor the list opens on)
 SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
 ; ==========================================================================
 
@@ -274,13 +275,13 @@ OnForeground(hook, event, hwnd, idObject, *) {
         mru[owner] := mruTick
 }
 
-; Alt+Tab-eligible windows on the current monitor, most recently activated first.
+; Alt+Tab-eligible windows on every monitor (MONITORS = "current": on the current one), most recently activated first.
 CollectWindows() {
-    mon := CurrentMonitor()
+    mon := MONITORS = "current" ? CurrentMonitor() : 0   ; 0: no filter (a monitor's handle is never 0)
     out := []
     for hwnd in WinGetList() {          ; Z-order breaks ties between never-activated windows
         try {   ; a window may close mid-scan
-            if IsSwitchable(hwnd) && DllCall("MonitorFromWindow", "ptr", hwnd, "uint", 2, "ptr") = mon
+            if IsSwitchable(hwnd) && (!mon || DllCall("MonitorFromWindow", "ptr", hwnd, "uint", 2, "ptr") = mon)
                 out.Push(hwnd)
         }
     }

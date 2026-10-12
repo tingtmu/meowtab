@@ -234,6 +234,33 @@ PaintLook(lk, name, sub, dc, w, h, st) {
     PanelText(dc, sub, Dpx(4), wh + Dpx(32), w - Dpx(8), Dpx(18), pnl.f["small"], LOOK.muted)
 }
 
+; The WINDOWS tick box's row (all of it takes the click): a rounded box, white in a rim of the border colour, or while ticked
+; (only this monitor's windows) the accent with a white check as on the picked LOOK card; its label beside it. The mouse over
+; the row lights the box (pale fill and an accent rim, or a lighter accent), as the slider's knob; the keyboard focus rings it.
+PaintTick(dc, w, h, st) {
+    s := A_ScreenDPI / 96, b := Dpx(18), r := Dpx(4), x := Dpx(6), y := (h - b) // 2, lw := Dpx(1.5), hov := st & 0x10000
+    on := pnl.monitors = "current", gr := Canvas(0, dc)
+    if on
+        FillRound(gr, x, y, b, b, r, Argb(hov ? Mix(LOOK.accent, "FFFFFF", 0.15) : LOOK.accent, 255))
+    else {
+        FillRound(gr, x, y, b, b, r, Argb(hov ? LOOK.pillHi : "FFFFFF", 255))
+        Ring(gr, x + lw / 2, y + lw / 2, b - lw, b - lw, r - lw / 2, hov ? LOOK.accent : LOOK.border, 255, lw)
+    }
+    if (st & 0x10) && !(st & 0x200)                   ; ODS_FOCUS without ODS_NOFOCUSRECT, as FocusRing
+        Ring(gr, x - Dpx(3), y - Dpx(3), b + Dpx(6), b + Dpx(6), r + Dpx(3), LOOK.accent, 200, 2)
+    if on {
+        cx := x + b / 2, cy := y + b / 2
+        DllCall("gdiplus\GdipCreatePen1", "uint", 0xFFFFFFFF, "float", 1.8 * s, "int", 2, "ptr*", &pen := 0)
+        DllCall("gdiplus\GdipSetPenStartCap", "ptr", pen, "int", 2), DllCall("gdiplus\GdipSetPenEndCap", "ptr", pen, "int", 2)   ; round
+        DllCall("gdiplus\GdipSetPenLineJoin", "ptr", pen, "int", 2)
+        pts := Buffer(24), NumPut("float", cx - 4 * s, "float", cy + 0.1 * s, "float", cx - 1.2 * s, "float", cy + 2.9 * s
+            , "float", cx + 4.1 * s, "float", cy - 2.6 * s, pts)
+        DllCall("gdiplus\GdipDrawLines", "ptr", gr, "ptr", pen, "ptr", pts, "int", 3), DllCall("gdiplus\GdipDeletePen", "ptr", pen)
+    }
+    DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
+    PanelText(dc, "Only this monitor's windows", x + b + Dpx(10), 0, w - x - b - Dpx(10), h, pnl.f["body"], LOOK.text)
+}
+
 ; Peek scene j (1 = a single window at PEEK_MIN, 2 = many windows at PEEK_MAX): the picture behind the top
 ; edge of a small pane, raised by the same rule as ShowPeek (share of the ArtSpan rows above the edge), its card's
 ; frame c.f. The pane is the switcher's in the picked look (MiniPane): its first tiles in a row, the first one selected.

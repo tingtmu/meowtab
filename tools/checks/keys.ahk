@@ -39,7 +39,7 @@ KeysMain() {
     MonitorGetWorkArea(MonitorGetPrimary(), &l, &t)
     title := "keys check menu " A_TickCount
     Run(Format('"{1}" /ErrorStdOut "{2}keys-menuwin.ahk" {3} "{4}" {5} {6}', A_AhkPath, RegExReplace(A_LineFile, "[^\\]+$"), ProcessExist(), title, l + 140, t + 40))
-    for i, n in ["A", "B", "C", "D"] {           ; on the primary monitor: only that monitor's windows are listed
+    for i, n in ["A", "B", "C", "D"] {           ; together on the primary monitor: listed first, whatever MONITORS is
         w := Gui(, "keys check " n), w.Show("x" l + 40 + i * 40 " y" t + 100 + i * 30 " w300 h200")
         kcGuis.Push(w), kcH[n] := w.Hwnd, kcName[w.Hwnd] := n
     }

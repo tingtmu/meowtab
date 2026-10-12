@@ -118,7 +118,7 @@ Production notes:
 
 ## Also on the list
 
-- **An empty monitor:** Alt+Tab on a monitor with no windows currently does nothing. Consider falling back to all monitors.
+- **An empty monitor:** with "Only this monitor's windows" ticked (`MONITORS=current`), Alt+Tab on a monitor with no windows currently does nothing. Consider falling back to all monitors there.
 
 ## How to capture screenshots and the GIF
 

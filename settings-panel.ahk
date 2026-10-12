@@ -1,9 +1,10 @@
 ; Settings… panel for meowtab.ahk and meowtab-classic.ahk (#Included by both; tray menu > Settings…, or
 ; the desktop icon, desktop-icon.ahk, which starts the script with /settings):
 ; mood images and their window ranges, how far the image peeks (peek only), the switcher's look (peek only), the font (list
-; text, or tile titles in peek), the shortcuts (peek only). They scroll under a fixed bottom bar: the hint line, Reset, Cancel
-; and Save. Built when opened and destroyed when closed, so nothing of it exists, runs or listens while closed, and Alt+Tab
-; never waits on it. Values go to settings.ini (settings-store.ahk); Save reloads the script to apply them.
+; text, or tile titles in peek), which monitors' windows it lists, the shortcuts (peek only). They scroll under a fixed
+; bottom bar: the hint line, Reset, Cancel and Save. Built when opened and destroyed when closed, so nothing of it exists,
+; runs or listens while closed, and Alt+Tab never waits on it. Values go to settings.ini (settings-store.ahk); Save reloads
+; the script to apply them.
 
 #Include %A_LineFile%\..\gdip-helpers.ahk
 #Include %A_LineFile%\..\gif.ahk
@@ -43,7 +44,7 @@ SettingsOpen(*) {
     peek := SettingsHas("PEEK_MIN")
     pnl := {tok: tok, el: Map(), cards: [], frames: [], labels: [], hover: 0, side: 0, drag: 0, dirty: false
         , note: PanelIssues(), held: 0, cap: 0, why: "", dy: 0, off: 0, wide: false, grab: -1, tabbed: false
-        , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE
+        , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE, monitors: MONITORS
         , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0
         , keys: SettingsHas("SWITCH_KEYS") ? [SettingsGet("SWITCH_KEYS"), SettingsGet("STAY_KEYS")] : 0
         , look: SettingsHas("PANE_LOOK") ? SettingsGet("PANE_LOOK") : 0}   ; the picked look (MeowTab)
@@ -73,7 +74,7 @@ SettingsOpen(*) {
 }
 
 ; The page: cards (few / some / many) with their range steppers, the peek scenes and sliders, the LOOK cards, the font row, the
-; shortcuts. Tab order follows creation, then goes on to the bar. Returns the page's height.
+; WINDOWS tick box, the shortcuts. Tab order follows creation, then goes on to the bar. Returns the page's height.
 PanelLayout(w) {
     pad := Dpx(28), gap := Dpx(16), cw := (w - 2 * pad - 2 * gap) // 3, y := Dpx(20)
     pnl.labels.Push(["MOOD IMAGES", pad, y]), y += Dpx(26)
@@ -103,6 +104,9 @@ PanelLayout(w) {
         , "Text size of the " (pnl.peek ? "window titles" : "list") ", in points (10–24).", PanelStepClick.Bind(4)).i := 4
     y += dh + Dpx(12)
     pnl.sample := PanelAdd("sample", pad, y, w - 2 * pad, Dpx(58), pnl.peek ? PaintTile : PaintSample), y += Dpx(58) + Dpx(26)
+    pnl.labels.Push(["WINDOWS", pad, y]), y += Dpx(26)   ; one tick box, its whole row clickable; its box in line with the label
+    PanelAdd("tick", pad - Dpx(6), y, w - 2 * pad + Dpx(6), Dpx(30), PaintTick
+        , "List only the windows on the monitor the switcher opens on (Save applies it).", PanelTick), y += Dpx(30) + Dpx(22)
     if pnl.keys
         y := PanelLayoutKeys(w, pad, gap, y)
     return y
@@ -507,6 +511,10 @@ PanelLook(lk, name, ctl, *) {   ; a LOOK card clicked (or Space): its look is pi
     PanelNote(lk = SettingsGet("PANE_LOOK") ? "" : name " picked. Save to use it."), pnl.held := ctl.Hwnd
 }
 
+PanelTick(ctl, *) {   ; the WINDOWS tick box clicked (or Space): ticked lists only the monitor the switcher opens on
+    pnl.monitors := pnl.monitors = "current" ? "all" : "current", pnl.dirty := true, PanelInvalidate(ctl.Hwnd)
+}
+
 PanelPick(i, *) {   ; card click: file picker, opened where the cats are (the app's images folder)
     pnl.gui.Opt("+OwnDialogs")
     if pnl.cards[i].busy
@@ -692,7 +700,8 @@ PanelSave(*) {   ; write settings.ini (+ pictures) and reload; nothing changed =
 }
 
 PanelVals() {   ; the panel's values for settings.ini, as Save writes them (the test writes them too: Save itself reloads)
-    vals := Map("FONT_NAME", pnl.face, "FONT_SIZE", pnl.size, "SOME_FROM", pnl.some, "MANY_FROM", pnl.many, "IMG_PREFIX", IMG_PREFIX)
+    vals := Map("FONT_NAME", pnl.face, "FONT_SIZE", pnl.size, "SOME_FROM", pnl.some, "MANY_FROM", pnl.many, "IMG_PREFIX", IMG_PREFIX
+        , "MONITORS", pnl.monitors)
     if pnl.peek
         vals["PEEK_MIN"] := pnl.peek[1] / 100, vals["PEEK_MAX"] := pnl.peek[2] / 100
     if pnl.keys
