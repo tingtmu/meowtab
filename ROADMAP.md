@@ -9,7 +9,7 @@ Where MeowTab goes after the 0.1 preview. Each item says what to build, why, and
 3. **The peek is the soul.** The mood picture on the pane's edge must always be fully visible, never cramped or cut by the screen edge.
 4. **Privacy.** Screenshots and recordings for docs only ever show demo windows over a stand-in wallpaper, never the user's real windows (see `readme-shots` in [How to capture](#how-to-capture-screenshots-and-the-gif)).
 
-Code map: `meowtab.ahk` holds settings, hotkeys and switching; `alttab-native.ahk` the pane (theme, acrylic, layout, drawing, thumbnails, mouse); `alttab-velvet.ahk` the Velvet look's drawing; `pane-picture.ahk` the background picture behind the tiles; `alttab-icons.ahk` the app icons; `alttab-peek.ahk` the peeking picture; `settings-*.ahk` the settings panel; `tests\meowtab.test.ahk` the integration test (`ALL PASSED` required before merging).
+Code map: see [CONTRIBUTING.md](CONTRIBUTING.md#code-map).
 
 ---
 
