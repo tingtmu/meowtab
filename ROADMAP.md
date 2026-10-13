@@ -61,7 +61,7 @@ The 30-window numbers are from 2026-10-09, over Remote Desktop: 1920 × 1080 at 
 
 ## 5. Release checks and easier installation
 
-**Today:** users run the source or build the exe themselves. CI can build a zip from a version tag, but there are no published scan reports or WinGet / Scoop packages to help people check a download and get started quickly.
+**Today:** v0.1.0, v0.2.0 and v0.3.0 (Latest) are published as GitHub releases, built by CI from version tags. Each has `SHA256SUMS.txt`, and its notes give the hashes with VirusTotal links. The README's Quick start offers a one-line PowerShell installer that checks the zip before installing, Scoop (its bucket follows the latest release) and the portable zip. Still open: the WinGet manifest for 0.1.0 ([microsoft/winget-pkgs#448658](https://github.com/microsoft/winget-pkgs/pull/448658)) is waiting for Microsoft's review. Once it merges, the current release follows as an update, and WinGet gets the clean-machine check that Scoop passed on 2026-10-08.
 
 **Plan**, in order:
 
@@ -102,11 +102,11 @@ Production notes:
 
 ## 8. macOS support, after the Windows release is stable
 
-**Today:** MeowTab uses AutoHotkey and Windows APIs for hotkeys, window previews and drawing. Supporting macOS needs a native implementation of those parts, while keeping the peeking pictures and mood behaviour.
+**Today:** a prototype lives in its own repository, [tingtmu/mac_meowtab](https://github.com/tingtmu/mac_meowtab): a fork of AltTab v11.9.0, under AltTab's GPL-3.0, with the peek, three PNG moods and a MeowTab settings section. Its first test candidate, `v0.1.0-rc.1`, is a pre-release waiting for an acceptance run on a real Mac; the 0.1.0 preview follows once one passes. What comes after (GIF moods, clean background, a focused switcher) is in that repository's own ROADMAP.md.
 
 **Plan:**
 
-- **Start with an existing switcher.** Evaluate [AltTab for macOS](https://github.com/lwouis/alt-tab-macos) as a reference or a possible fork. Check how its window switching, previews and shortcuts could support MeowTab's pane and pictures; record the approach and review its licence requirements before reusing code.
+- **Start with an existing switcher.** Evaluate [AltTab for macOS](https://github.com/lwouis/alt-tab-macos) as a reference or a possible fork. Check how its window switching, previews and shortcuts could support MeowTab's pane and pictures; record the approach and review its licence requirements before reusing code. **Done:** MeowTab for Mac is a fork of it.
 - **A small first preview:** forward/backward window cycling, release-to-switch, cancellation, custom shortcuts, and the three mood pictures with support for the user's own images. Keep the picture fully visible and measure opening and selection latency on real Mac hardware.
 - **Fit the platform:** follow macOS light and dark appearance, explain required permissions during setup, and check minimized windows, full-screen apps, Spaces and multiple displays. Document the supported macOS versions and hardware for the preview.
 
@@ -115,6 +115,34 @@ Production notes:
 ## 9. Animated GIF pictures
 
 **Done**: a GIF picked for or dropped on a mood card is kept as a GIF and keeps moving in the peek, in both looks, and on the settings panel's cards and scenes. It shows still, as its first frame, with Windows' Animation effects off, and in `meowtab-classic`. **Clean background** works on a GIF frame by frame. `images/chill.gif` ships beside the three PNG cats, which stay the default. The demo GIF is in the README, under the screenshots. `PEEK_MIN`'s default went from 0.72 to 0.80, so the cat's lower part shows with 1 window.
+
+## 10. Launch: one front door, then the first post
+
+**Why:** MeowTab is free, made for fun and to ease a little work stress, so there is no launch date. It goes public when every line in the post works the first time, on both systems.
+
+**Decided (2026-10-13):**
+
+- **No website for now.** On a download page, the big button leads to the hardest path. Neither build is signed, so the zip meets SmartScreen on Windows and "Open Anyway" in System Settings on a Mac, while the one-line installs skip both. The README is the front door. A page can come later, if non-technical readers do, and it would only wrap the same lines.
+- **The post carries the install lines itself:** one per system, then "hold Alt and press Tab", then the repo link. "Give this link to your AI agent" is one route, not the only one: a chat AI can't install anything, and an agent still asks the reader to approve the command.
+- **The Mac is in the first post only as a real 0.1.0**, not a test candidate.
+
+**Steps:**
+
+1. The demo GIF, in English and 繁體中文 (item 6).
+2. Release v0.4.0, with what's on main since 0.3.0 (monitor scope, the background picture).
+3. The Mac preview: the acceptance run of `v0.1.0-rc.1`, fixes, then v0.1.0 (item 8, and mac_meowtab's `mac-preview-release`). This takes longest, so start it early, beside steps 1 and 2.
+4. One front door, after the Mac 0.1.0:
+   - an "On a Mac?" line near the top of both READMEs;
+   - the Mac install in `llms.txt`, or a Mac `llms.txt` it points to, so an agent given this repository installs the right app on either system;
+   - mac_meowtab's website field, still AltTab's `alt-tab.app`, pointing here.
+5. The post, in English and 繁體中文.
+
+**Ready to post when:**
+
+- On a clean Windows PC, the post's PowerShell line installs the current release and the cat peeks.
+- On a Mac, the post's Terminal line installs v0.1.0 without a tag, and the permissions granted survive an update.
+- An AI agent given `github.com/tingtmu/meowtab` installs the right app on each system.
+- The GIF shows only demo windows (principle 4).
 
 ## Also on the list
 
