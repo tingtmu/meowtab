@@ -24,13 +24,26 @@ Run only one at a time; both replace Alt+Tab. The other `.ahk` files are parts t
 ## Code map
 
 - `meowtab.ahk`: settings, hotkeys and switching
-- `alttab-native.ahk`: the pane (theme, acrylic, layout, drawing, thumbnails, mouse)
+- `meowtab-classic.ahk`: the second script, with the original list layout
+- `windows.ahk`: the window listing and recency, the current monitor and its work area (shared by both scripts and the settings panel)
+- `alttab-native.ahk`: the switcher's pane (theme, acrylic, the pane's surface, live thumbnails, the mouse)
+- `alttab-grid.ahk`: the tiles' layout, scrolling, selection moves and the scroll bar
+- `alttab-draw.ahk`: drawing the pane (`Render` and its helpers)
 - `alttab-velvet.ahk`: the Velvet look's drawing
 - `pane-picture.ahk`: the background picture behind the tiles
 - `alttab-icons.ahk`: the app icons
 - `alttab-peek.ahk`: the peeking picture
-- `settings-*.ahk`: the settings panel
-- `tests\meowtab.test.ahk`: the integration test (`ALL PASSED` required before merging)
+- `settings-panel.ahk`: the settings panel (opening, layout, the shortcut capture, Save and Reset)
+- `settings-events.ahk`: the panel's message and input handlers (painting, keys, mouse, scrolling, the steppers, sliders and cards)
+- `settings-pictures.ahk`: the panel's pictures: picking and dropping them on the cards, GIF playback on the cards, Clean background, the background picture
+- `settings-paint.ahk`: the panel's drawing
+- `settings-mini.ahk`: the switcher in miniature (the LOOK cards, the peek scenes, the title sample)
+- `settings-store.ahk`: loading, checking and saving `settings.ini`, and the file work of importing pictures
+- `gdip-helpers.ahk`: small GDI+ helpers shared by the pane and the panel
+- `gif.ahk`: animated GIFs, read as frames and written back
+- `cutout.ahk`, `cutout-gif.ahk`, `cutout-mcode.ahk`: Clean background (a still picture, an animated GIF, and the machine code built from `cutout.c`, never edited by hand)
+- `desktop-icon.ahk`: the Desktop icon shortcut on the tray menu
+- `tests\meowtab.test.ahk`: the integration test, which runs its checks from parts beside it in `tests\` (`ALL PASSED` required before merging)
 
 `meowtab.ahk` also has a **Native look** block of constants just below the settings (pane padding, tile sizes and gaps, the selection ring, the close button, light and dark colours), each line commented, for tinkering. Velvet's palettes and sizes sit next to the Windows 11 ones (`VELVET_LIGHT` and `VELVET_DARK` beside `LIGHT_PAL` and `DARK_PAL`).
 

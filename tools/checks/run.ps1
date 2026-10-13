@@ -146,19 +146,23 @@ elseif ($Mode -eq 'timing' -or $Mode -eq 'opens') {
     $runs.Add([string[]]$(if ($Mode -eq 'opens') { @($Out, $Tag, $Count) } elseif ($Alternate) { @($Out, $Tag, 'alternate') } else { @($Out, $Tag) }))
 }
 elseif ($Mode -eq 'stay') {
-    # A copy in which meowtab.ahk's CollectWindows is renamed CollectWindows__orig: stay-seam.ahk defines it again, listing only the
-    # demo windows (meowtab-classic.ahk has its own, and isn't included). The root's files are only read.
+    # A copy in which CollectWindows is renamed CollectWindows__orig in the file that defines it (windows.ahk; meowtab.ahk in older
+    # sources): stay-seam.ahk defines it again, listing only the demo windows. meowtab-classic.ahk is skipped (older sources have
+    # their own copy in it, and it isn't included). The root's files are only read.
     $src = Join-Path $gen 'src'
     New-Item -ItemType Directory $src | Out-Null
     $rx = [regex]'(?m)^CollectWindows\('
+    $defs = @()
     foreach ($f in Get-ChildItem -LiteralPath $Root -Filter *.ahk -File) {
         $t = [IO.File]::ReadAllText($f.FullName)
-        if ($f.Name -eq 'meowtab.ahk') {
-            if ($rx.Matches($t).Count -ne 1) { throw "expected one CollectWindows( definition in $Root\meowtab.ahk" }
+        if ($f.Name -ne 'meowtab-classic.ahk' -and $rx.IsMatch($t)) {
+            $defs += @($f.Name) * $rx.Matches($t).Count
             $t = $rx.Replace($t, 'CollectWindows__orig(', 1)
         }
         [IO.File]::WriteAllText((Join-Path $src $f.Name), $t, $utf8)
     }
+    if ($defs.Count -ne 1) { throw "expected one CollectWindows( definition in $Root\*.ahk (meowtab-classic.ahk aside), found $($defs.Count)$(if ($defs) { ': ' + ($defs -join ', ') })" }
+    Write-Host "stay: CollectWindows renamed in $($defs[0])"
     $main = "#Include $src\meowtab.ahk`n$sayLook#Include $checks\lib.ahk`n#Include $checks\stay-seam.ahk`n#Include $checks\stay.ahk`n"
     $runs.Add([string[]]@($Out, $Tag))
 }

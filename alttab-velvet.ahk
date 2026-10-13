@@ -1,6 +1,7 @@
 ; The Velvet look for the switcher's pane (#Included by the main script, after alttab-native.ahk; the settings, constants
-; and state globals live there): native at a glance, softer and warmer up close. alttab-native.ahk calls in here only where
-; Velvet's shapes differ (PANE_LOOK = "velvet"); the layout, thumbnails and mouse stay its own. Functions only.
+; and state globals live there): native at a glance, softer and warmer up close. alttab-native.ahk, alttab-grid.ahk and
+; alttab-draw.ahk call in here only where Velvet's shapes differ (PANE_LOOK = "velvet"); the layout, thumbnails and mouse
+; stay theirs. Functions only.
 
 ; ----- The surface: a base layer made once per pane size and mode, kept between opens, copied at the start of each frame -----
 
