@@ -51,13 +51,16 @@ Check("a red | blue picture on a square pane: its middle fills it, red on the le
     . (PANE_LOOK = "velvet" ? "red then blue under Velvet's tint" : "and so in the surface"), inLayer got
     , "layer: red red blue blue | light: red red blue blue; dark: red red blue blue")
 
-; The layer is made once per pane size: two opens on 3 windows share it, one on 6 (another pane size) makes a new one and frees the
-; old. The open pane shows the picture in its left padding.
+; The layer is made once per pane size: two opens on 3 windows share it, one on 6 (another pane size) makes a new one. The open
+; pane shows the picture in its left padding. A new size frees the old layer: the process's GDI objects don't grow (GetObjectType
+; can't tell, as it still says a bitmap for a while after DeleteObject).
 Open(3, 1), was := picLayer.hbm, Finish(false), Wait(0)
 Open(3, 1), got := (picLayer.hbm = was) " " PicTone(surf, grid.pad // 2, grid.h // 2, PANE_LOOK = "velvet"), Finish(false), Wait(0)
-Open(6, 1), got .= " " (picLayer.hbm != was) " " DllCall("GetObjectType", "ptr", was), Finish(false), Wait(0)
-Check("two opens on 3 windows share the picture's layer (the same bitmap), red in the pane's left padding; one on 6 makes a new one and frees the old"
-    , got, "1 red 1 0")
+Open(6, 1), got .= " " (picLayer.hbm != was), Finish(false), Wait(0)
+gdi := DllCall("GetGuiResources", "ptr", DllCall("GetCurrentProcess", "ptr"), "uint", 0), PaneLayer(picLayer.w + 1, picLayer.h)
+got .= " " (DllCall("GetGuiResources", "ptr", DllCall("GetCurrentProcess", "ptr"), "uint", 0) <= gdi)
+Check("two opens on 3 windows share the picture's layer (the same bitmap), red in the pane's left padding; one on 6 makes a new one; a new size frees the old (no more GDI objects)"
+    , got, "1 red 1 1")
 
 ; A 2560 x 1 strip on a 900 x 900 pane: only its middle is scaled (scaled whole to cover, it would be 2304000 px wide, past WIC's limit).
 bm := NewBitmap(2560, 1), SavePng(bm, DATA_DIR "\images\pane.png"), DllCall("gdiplus\GdipDisposeImage", "ptr", bm), PanePicLoad()

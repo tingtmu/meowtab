@@ -25,7 +25,7 @@ IMG_SIZE   := 100     ; mood image in the bottom-left corner, in pixels
 IMG_ROWS   := 12      ; pane is tall enough that the list covers the image only beyond this many windows
 WM_PROCESS := ""      ; optional: script exits when this process is gone, e.g. "glazewm.exe" ("" = never)
 MONITORS   := "all"   ; the windows listed: "all" monitors' or only the "current" one's (the monitor the list opens on)
-SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
+SettingsLoad()        ; settings.ini overrides (validated; see settings-store.ahk)
 ; ==========================================================================
 
 CoordMode "Mouse", "Screen"

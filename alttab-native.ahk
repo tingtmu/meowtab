@@ -4,7 +4,7 @@
 ; Functions only, plus a guard against running it alone.
 
 #Warn VarUnset, Off                                ; those globals don't exist when this file is opened by itself
-                                                   ; (also quiets the settings-*.ahk files #Included after it)
+                                                   ; (it holds for the whole script that includes it, MeowTab's: the last #Warn wins)
 if A_LineFile = A_ScriptFullPath {
     MsgBox "This file is #Included by the switcher's main script and can't run alone. Run that script instead.", "alttab-native", 0x10
     ExitApp

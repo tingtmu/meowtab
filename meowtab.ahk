@@ -27,7 +27,7 @@ STAY_KEYS   := "Ctrl+Alt+Tab" ; opens a pane that stays open once let go: Enter 
 PANE_LOOK   := "velvet"       ; the pane's look: "velvet" (softer and warmer up close) or "windows11" (as Windows draws it)
 MONITORS    := "all"          ; the windows listed: "all" monitors' or only the "current" one's (the monitor the pane opens on)
 PANE_PICTURE := ""            ; a picture behind the tiles: its file name in %APPDATA%\MeowTab\images ("" = none: plain glass)
-SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
+SettingsLoad()        ; settings.ini overrides (validated; see settings-store.ahk)
 ; ==========================================================================
 
 ; ===== Native look (Windows 11 Alt+Tab): sizes in px at 96 dpi, scaled by A_ScreenDPI / 96; colours RRGGBB, alphas 0-255 =====
@@ -303,7 +303,7 @@ PeekShare(n) => PEEK_MIN + (PEEK_MAX - PEEK_MIN) * Min(Max(n - 1, 0) / (MANY_FRO
 
 ; The native look (theme, acrylic, thumbnails, mouse), its grid and its drawing, the window listing and recency, the Velvet look's
 ; drawing, the background picture, app icons, the peeking image (functions only); the Settings… panel and settings.ini.
-; alttab-native.ahk goes first: its #Warn covers the rest.
+; alttab-native.ahk's #Warn VarUnset, Off holds for the whole script (the last #Warn wins, wherever it is).
 #Include %A_LineFile%\..\alttab-native.ahk
 #Include %A_LineFile%\..\alttab-grid.ahk
 #Include %A_LineFile%\..\alttab-draw.ahk
