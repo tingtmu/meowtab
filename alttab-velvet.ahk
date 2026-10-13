@@ -8,8 +8,9 @@
 ; the selected one last (lifted over the rest), and the scroll bar.
 VelvetRender(s) {
     global velvetBase
-    if !velvetBase || velvetBase.w != s.w || velvetBase.h != s.h || velvetBase.pal != pal || velvetBase.S != grid.S
-        VelvetBaseFree(), velvetBase := VelvetBaseMake(s.w, s.h)   ; a new pane size, mode or scale: its base, once
+    pic := PaneLayer(s.w, s.h)                     ; the background picture's layer (0 = none)
+    if !velvetBase || velvetBase.w != s.w || velvetBase.h != s.h || velvetBase.pal != pal || velvetBase.S != grid.S || velvetBase.pic != pic
+        VelvetBaseFree(), velvetBase := VelvetBaseMake(s.w, s.h, pic)   ; a new pane size, mode, scale or picture layer: its base, once
     DllCall("BitBlt", "ptr", s.dc, "int", 0, "int", 0, "int", s.w, "int", s.h, "ptr", velvetBase.dc, "int", 0, "int", 0, "uint", 0xCC0020)   ; SRCCOPY
     DllCall("GdiFlush")                            ; in the bits before GDI+ draws on them
     VelvetClip(s.gr), frost := VelvetFrost()
@@ -25,14 +26,18 @@ VelvetRender(s) {
 }
 VelvetClip(gr) => DllCall("gdiplus\GdipSetClipRectI", "ptr", gr, "int", 0, "int", Inset(), "int", grid.w, "int", grid.h - 2 * Inset(), "int", 0)   ; the view, as Render's
 
-; The base layer for a w x h pane in this palette and scale: the warm tint (VelvetTint), then a soft highlight down the top
-; half of the padding; with the caches that go with them (VelvetFaded, VelvetShade, VelvetAlpha's attributes). Freed at exit.
-VelvetBaseMake(w, h) {
+; The base layer for a w x h pane in this palette and scale: the background picture's layer pic if there is one (PaneLayer), the
+; warm tint (VelvetTint) over it, then a soft highlight down the top half of the padding; with the caches that go with them
+; (VelvetFaded, VelvetShade, VelvetAlpha's attributes). Freed at exit.
+VelvetBaseMake(w, h, pic) {
     static atExit := OnExit((*) => (VelvetBaseFree(), 0))
-    b := SurfaceMake(w, h), b.pal := pal, b.S := grid.S, b.fades := Map(), b.shades := Map(), b.ia := 0, lip := grid.pad // 2
+    b := SurfaceMake(w, h), b.pal := pal, b.S := grid.S, b.pic := pic, b.fades := Map(), b.shades := Map(), b.ia := 0, lip := grid.pad // 2
     DllCall("gdiplus\GdipSetPixelOffsetMode", "ptr", b.gr, "int", 3)   ; None (pixel centres on whole px): as the look was tuned
-    DllCall("gdiplus\GdipSetCompositingMode", "ptr", b.gr, "int", 1)   ; SourceCopy: the first layer, copied (20x faster than
-    Fill(b.gr, VelvetTint(pal), w, h, false)                            ; drawn over the clear surface, the same pixels)
+    if pic                                                              ; the picture first, copied; the tint drawn over it
+        DllCall("BitBlt", "ptr", b.dc, "int", 0, "int", 0, "int", w, "int", h, "ptr", pic.dc, "int", 0, "int", 0, "uint", 0xCC0020), DllCall("GdiFlush")
+    else
+        DllCall("gdiplus\GdipSetCompositingMode", "ptr", b.gr, "int", 1)   ; SourceCopy: the first layer, copied (20x faster than
+    Fill(b.gr, VelvetTint(pal), w, h, false)                                ; drawn over the clear surface, the same pixels)
     DllCall("gdiplus\GdipSetCompositingMode", "ptr", b.gr, "int", 0)
     Fill(b.gr, FadeBrush(0, 0, w, lip, 90, [[pal.lip[1], pal.lip[2], 0], [pal.lip[1], 0, 1]]), w, lip)
     DllCall("gdiplus\GdipFlush", "ptr", b.gr, "int", 1)

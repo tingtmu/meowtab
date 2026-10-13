@@ -2,9 +2,15 @@
 # the AutoHotkey wrapper (and, for timing, stay and opens, an instrumented COPY of the root's sources) is generated under
 # build\checks\gen\. Options:
 #   shots   [-Out <dir>] [-Tag <name>] [-Theme light,dark] [-Scenes abcdm]       timing  [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...] [-Gif <file>]
+#                                                                                        [-Picture <file>] [-Alternate]
 #   stay    [-Out <dir>] [-Tag <name>]   (stay-open timings)                     keys    (Win+Q: no Start menu, no menu bar)
-#   opens   [-Out <dir>] [-Tag <name>] [-Count <n>]   (n opens, default 200: handles and memory stay flat, no timer runs after)
+#   opens   [-Out <dir>] [-Tag <name>] [-Count <n>] [-Picture <file>]   (n opens, default 200: handles and memory stay flat, no timer runs after)
 # -Gif <file> (timing) puts that GIF on every mood in place of the root's pictures (lib.ahk's Stage), and adds -gif to the default tag.
+# -Picture <file> (timing, opens) imports that picture into the new data folder as the panel's Save does (pane.png, with
+# PANE_PICTURE=pane.png in its settings.ini), so the app loads it at startup as a user's; adds -pic to the default tag. The run prints
+# the size the app loaded it at.
+# -Alternate (timing) opens on 3 and 6 demo windows by turns in place of 30, so every open has a new pane size; adds -alt to the
+# default tag.
 # -Effects on|off (any mode) sets ANIM_EFFECTS, in place of Windows' Animation effects: Velvet's motion and a GIF's playback follow it.
 # -Look velvet|windows11 (any mode) runs the app in that look: the wrapper writes PANE_LOOK into the new data folder's settings.ini, as
 # the test does; without it nothing is written and the app's default applies. The run prints the look the app runs in.
@@ -28,6 +34,8 @@ param(
     [string[]]$Wrap = @(),                       # timing: more functions to wrap and time (ScrollTick, SelectTile, PaneWheel always)
     [int]$Count = 200,                           # opens: how many
     [string]$Gif,                                # timing: this GIF on every mood (default: the root's pictures)
+    [string]$Picture,                            # timing, opens: this background picture, as pane.png (default: none)
+    [switch]$Alternate,                          # timing: open on 3 and 6 windows by turns (default: 30)
     [ValidateSet('on', 'off')][string]$Effects,  # ANIM_EFFECTS (default: Windows' Animation effects)
     [switch]$Validate,                           # only generate and load-check (no windows, no input)
     [string]$Ahk                                 # AutoHotkey64.exe (default: the first of the two usual v2 install paths that exists, below)
@@ -46,7 +54,10 @@ if (-not $Ahk) {
 $Root = (Resolve-Path -LiteralPath $Root).Path.TrimEnd('\')
 if (-not (Test-Path -LiteralPath "$Root\meowtab.ahk")) { throw "no meowtab.ahk in $Root" }
 if ($Gif) { $Gif = (Resolve-Path -LiteralPath $Gif).Path }   # relative: to where it was started from
-if (-not $Tag) { $Tag = (Split-Path $Root -Leaf) + $(if ($Look) { "-$Look" }) + $(if ($Gif) { '-gif' }) }   # each look's runs apart, the GIF's too
+if ($Picture) { $Picture = (Resolve-Path -LiteralPath $Picture).Path }
+if (-not $Tag) {                                 # each look's runs apart, the GIF's, the picture's and the alternating ones too
+    $Tag = (Split-Path $Root -Leaf) + $(if ($Look) { "-$Look" }) + $(if ($Gif) { '-gif' }) + $(if ($Picture) { '-pic' }) + $(if ($Alternate) { '-alt' })
+}
 if (-not $Out) { $Out = Join-Path $repo "build\checks\$Tag" }
 $Out = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Out)
 $gen = Join-Path $repo "build\checks\gen\$Tag-$Mode"
@@ -73,6 +84,20 @@ if ($Look) { $head += 'DirCreate(DATA_DIR), IniWrite("' + $Look + '", DATA_DIR "
 if ($Gif) { $head += 'GIF_ALL := "' + $Gif + '"' + "`n" }   # lib.ahk's Stage loads it for every mood
 if ($Effects) { $head += 'ANIM_EFFECTS := ' + $(if ($Effects -eq 'on') { 'true' } else { 'false' }) + "`n" }
 $sayLook = 'FileAppend("look: " (IsSet(PANE_LOOK) ? PANE_LOOK : "windows11 (no PANE_LOOK in this source)") "`n", "*")' + "`n"
+if ($Picture) {
+    # pane.png made by the panel's own import (its functions are defined before the include runs; GDI+ only for it, the app starts
+    # its own; loaded first, as the app does, or each DllCall would unload it again), then the setting; once the app has started,
+    # the size it loaded the picture at.
+    $head += @"
+DllCall("LoadLibrary", "str", "gdiplus"), RUN_SI := Buffer(24, 0), NumPut("uint", 1, RUN_SI)
+DllCall("gdiplus\GdiplusStartup", "ptr*", &RUN_GDIP := 0, "ptr", RUN_SI, "ptr", 0)
+if (RUN_WHY := PaneImport("$Picture") PaneCommit(false)) != ""
+    FileAppend("can't use $($Picture): " RUN_WHY "``n", "*"), ExitApp(3)
+DllCall("gdiplus\GdiplusShutdown", "ptr", RUN_GDIP), IniWrite("pane.png", DATA_DIR "\settings.ini", "settings", "PANE_PICTURE")
+
+"@
+    $sayLook += 'FileAppend("pane picture: " (IsSet(panePic) && panePic ? panePic.w "x" panePic.h " loaded at startup" : "none") "`n", "*")' + "`n"
+}
 
 $runs = New-Object 'System.Collections.Generic.List[string[]]'   # one argument list per AutoHotkey process
 if ($Mode -eq 'shots') {
@@ -118,7 +143,7 @@ elseif ($Mode -eq 'timing' -or $Mode -eq 'opens') {
     foreach ($name in $texts.Keys) { [IO.File]::WriteAllText((Join-Path $src $name), $texts[$name], $utf8) }
     [IO.File]::WriteAllText("$gen\wrap.ahk", $wrappers, $utf8)
     $main = "#Include $src\meowtab.ahk`n$sayLook#Include $gen\wrap.ahk`n#Include $checks\lib.ahk`n#Include $checks\$Mode.ahk`n"
-    $runs.Add([string[]]$(if ($Mode -eq 'opens') { @($Out, $Tag, $Count) } else { @($Out, $Tag) }))
+    $runs.Add([string[]]$(if ($Mode -eq 'opens') { @($Out, $Tag, $Count) } elseif ($Alternate) { @($Out, $Tag, 'alternate') } else { @($Out, $Tag) }))
 }
 elseif ($Mode -eq 'stay') {
     # A copy in which meowtab.ahk's CollectWindows is renamed CollectWindows__orig: stay-seam.ahk defines it again, listing only the
@@ -145,7 +170,7 @@ else {
 
 $wrapper = Join-Path $gen "$Mode.ahk"
 [IO.File]::WriteAllText($wrapper, $head + $main, $utf8)
-Write-Host "run: $Mode on $Root, look: $(if ($Look) { $Look } else { "the app's default" })$(if ($Gif) { ", every mood: $Gif" })`nwrapper: $wrapper`nout: $Out"
+Write-Host "run: $Mode on $Root, look: $(if ($Look) { $Look } else { "the app's default" })$(if ($Gif) { ", every mood: $Gif" })$(if ($Picture) { ", pane picture: $Picture" })$(if ($Alternate) { ', opens on 3 and 6 windows by turns' })`nwrapper: $wrapper`nout: $Out"
 if (-not (Test-Path -LiteralPath $wrapper)) { throw "no wrapper at $wrapper" }
 $ErrorActionPreference = 'Continue'
 $worst = 0

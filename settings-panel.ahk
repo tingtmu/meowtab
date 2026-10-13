@@ -1,8 +1,8 @@
 ; Settings… panel for meowtab.ahk and meowtab-classic.ahk (#Included by both; tray menu > Settings…, or
 ; the desktop icon, desktop-icon.ahk, which starts the script with /settings):
-; mood images and their window ranges, how far the image peeks (peek only), the switcher's look (peek only), the font (list
-; text, or tile titles in peek), which monitors' windows it lists, the shortcuts (peek only). They scroll under a fixed
-; bottom bar: the hint line, Reset, Cancel and Save. Built when opened and destroyed when closed, so nothing of it exists,
+; mood images and their window ranges, how far the image peeks (peek only), the switcher's look and background (peek only),
+; the font (list text, or tile titles in peek), which monitors' windows it lists, the shortcuts (peek only). They scroll under
+; a fixed bottom bar: the hint line, Reset, Cancel and Save. Built when opened and destroyed when closed, so nothing of it exists,
 ; runs or listens while closed, and Alt+Tab never waits on it. Values go to settings.ini (settings-store.ahk); Save reloads
 ; the script to apply them.
 
@@ -47,7 +47,8 @@ SettingsOpen(*) {
         , some: SOME_FROM, many: MANY_FROM, face: FONT_NAME, size: FONT_SIZE, monitors: MONITORS
         , peek: peek ? [Round(SettingsGet("PEEK_MIN") * 100), Round(SettingsGet("PEEK_MAX") * 100)] : 0
         , keys: SettingsHas("SWITCH_KEYS") ? [SettingsGet("SWITCH_KEYS"), SettingsGet("STAY_KEYS")] : 0
-        , look: SettingsHas("PANE_LOOK") ? SettingsGet("PANE_LOOK") : 0}   ; the picked look (MeowTab)
+        , look: SettingsHas("PANE_LOOK") ? SettingsGet("PANE_LOOK") : 0   ; the picked look (MeowTab)
+        , pane: SettingsHas("PANE_PICTURE") && SettingsGet("BACKDROP") ? {bm: 0, pending: false, gone: false} : 0}   ; the BACKGROUND card's (MeowTab, on the glass)
     if pnl.look                                       ; the switcher in miniature (MiniPane) takes Windows' mode and accent as they are now
         pnl.dark := SettingsGet("dark"), pnl.accent := SettingsGet("AccentRing")()
     pnl.gui := g := Gui("-MinimizeBox -MaximizeBox -DPIScale", "MeowTab settings")
@@ -63,6 +64,8 @@ SettingsOpen(*) {
     pnl.at := g, pnl.dy := pnl.viewH - pnl.h, PanelLayoutBar(w, pnl.h)   ; in the panel, right under the view
     for i in [1, 2, 3]
         PanelLoadCard(i)
+    if pnl.pane
+        PanelLoadPane()
     PanelSurface(w, pnl.h + pnl.bh)
     PanelHook(true)
     g.OnEvent("Close", PanelClose), g.OnEvent("Escape", PanelClose), g.OnEvent("DropFiles", PanelDrop), p.OnEvent("DropFiles", PanelDrop)
@@ -73,8 +76,8 @@ SettingsOpen(*) {
     PanelFontList()
 }
 
-; The page: cards (few / some / many) with their range steppers, the peek scenes and sliders, the LOOK cards, the font row, the
-; WINDOWS tick box, the shortcuts. Tab order follows creation, then goes on to the bar. Returns the page's height.
+; The page: cards (few / some / many) with their range steppers, the peek scenes and sliders, the LOOK cards, the BACKGROUND card,
+; the font row, the WINDOWS tick box, the shortcuts. Tab order follows creation, then goes on to the bar. Returns the page's height.
 PanelLayout(w) {
     pad := Dpx(28), gap := Dpx(16), cw := (w - 2 * pad - 2 * gap) // 3, y := Dpx(20)
     pnl.labels.Push(["MOOD IMAGES", pad, y]), y += Dpx(26)
@@ -87,7 +90,7 @@ PanelLayout(w) {
         if i > 1
             PanelAdd("step", x + Dpx(12), y + Dpx(194), Dpx(80), Dpx(28), PaintStepper.Bind(i)
                 , "Where “" MOOD_NOTES[i] "” starts: the fewest windows that count.", PanelStepClick.Bind(i)).i := i
-        c.clean := PanelAdd("chip", x + cw - Dpx(74), y + Dpx(194), Dpx(62), Dpx(28), PaintChip.Bind(i)
+        c.clean := PanelAdd("chip", x + cw - Dpx(74), y + Dpx(194), Dpx(62), Dpx(28), PaintChip.Bind("✧ Clean")
             , "Clean background: remove a plain light background and crop.", PanelClean.Bind(i))
         c.clean.ctl.Visible := false
         pnl.cards.Push(c)
@@ -97,6 +100,8 @@ PanelLayout(w) {
         y := PanelLayoutPeek(w, pad, gap, y)
     if pnl.look
         y := PanelLayoutLook(w, pad, gap, y)
+    if pnl.pane
+        y := PanelLayoutPane(w, pad, gap, y)
     pnl.labels.Push([pnl.peek ? "TITLE FONT" : "LIST FONT", pad, y]), y += Dpx(26)   ; peek: its tiles' titles; elegant: its list
     pnl.ddl := pnl.page.AddDropDownList("x" pad " y" y " w" Dpx(330) " r16")
     pnl.ddl.OnEvent("Change", PanelFontPick), pnl.ddl.OnEvent("Focus", PanelReveal), pnl.ddl.GetPos(, , , &dh)
@@ -142,6 +147,18 @@ PanelLayoutLook(w, pad, gap, y) {   ; two cards, Velvet and Windows 11, each its
         PanelAdd("look", x + Dpx(8), y + Dpx(8), sw - Dpx(16), Dpx(162), PaintLook.Bind(c[1], c[2], c[3])
             , "Pick " c[2] ": " c[4] " (Save applies it).", PanelLook.Bind(c[1], c[2])).lk := c[1]
     }
+    return y + Dpx(178) + Dpx(22)
+}
+
+; A card as wide as a LOOK card: the pane in small, its picture or glass (PaintPane); under it what it shows, and Remove.
+PanelLayoutPane(w, pad, gap, y) {
+    pnl.labels.Push(["BACKGROUND", pad, y]), y += Dpx(26), sw := (w - 2 * pad - gap) // 2
+    pnl.frames.Push([pad, y, sw, Dpx(178)])           ; after the mood and LOOK cards' frames, which PanelDrop goes by
+    pnl.pane.card := PanelAdd("pane", pad + Dpx(8), y + Dpx(8), sw - Dpx(16), Dpx(124), PaintPane
+        , "Click to choose the picture behind the tiles, or drop one here.", PanelPanePick)
+    pnl.pane.name := PanelAdd("line", pad + Dpx(12), y + Dpx(140), sw - Dpx(98), Dpx(28), PaintPaneName)
+    pnl.pane.remove := PanelAdd("chip", pad + sw - Dpx(74), y + Dpx(140), Dpx(62), Dpx(28), PaintChip.Bind("Remove")
+        , "Remove the picture: plain glass again (Save applies it).", PanelPaneRemove)
     return y + Dpx(178) + Dpx(22)
 }
 
@@ -273,6 +290,8 @@ PanelClose(*) {
         for b in [c.thumb, c.big]
             if b
                 DllCall("gdiplus\GdipDisposeImage", "ptr", b)
+    if pnl.pane && pnl.pane.bm
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pnl.pane.bm)
     for k, f in pnl.f
         DllCall("DeleteObject", "ptr", f)
     DllCall("SelectObject", "ptr", pnl.surfDC, "ptr", pnl.surfOld), DllCall("DeleteObject", "ptr", pnl.surfBmp)
@@ -507,7 +526,7 @@ PanelFontPick(ctl, *) {
 PanelLook(lk, name, ctl, *) {   ; a LOOK card clicked (or Space): its look is picked, and the cards, scenes and sample draw it at once
     if lk = pnl.look
         return
-    pnl.look := lk, pnl.dirty := true, PanelSampleFont(), PanelRedraw("look", "scene", "sample")
+    pnl.look := lk, pnl.dirty := true, PanelSampleFont(), PanelRedraw("look", "scene", "sample", "pane")
     PanelNote(lk = SettingsGet("PANE_LOOK") ? "" : name " picked. Save to use it."), pnl.held := ctl.Hwnd
 }
 
@@ -524,12 +543,16 @@ PanelPick(i, *) {   ; card click: file picker, opened where the cats are (the ap
         PanelImport(i, f)
 }
 
-PanelDrop(gui, ctl, files, x, y) {   ; a file dropped on the page (x, y on it, however scrolled): the mood card under it takes it
+PanelDrop(gui, ctl, files, x, y) {   ; a file dropped on the page (x, y on it, however scrolled): the picture card under it takes it
     if gui = pnl.page
-        for i, f in pnl.frames                        ; the mood cards' come first (the LOOK cards' take no pictures)
-            if i <= pnl.cards.Length && x >= f[1] && x < f[1] + f[3] && y >= f[2] && y < f[2] + f[4]
-                return pnl.cards[i].busy ? 0 : PanelImport(i, files[1])
-    PanelNote("Drop the picture onto one of the three cards.")
+        for i, f in pnl.frames                        ; the mood cards' come first, the BACKGROUND card's last (the LOOK cards' take no pictures)
+            if x >= f[1] && x < f[1] + f[3] && y >= f[2] && y < f[2] + f[4] {
+                if i <= pnl.cards.Length
+                    return pnl.cards[i].busy ? 0 : PanelImport(i, files[1])
+                if pnl.pane && i = pnl.frames.Length
+                    return PanelPane(files[1])
+            }
+    PanelNote(pnl.pane ? "Drop the picture onto a mood card or the background card." : "Drop the picture onto one of the three cards.")
 }
 
 PanelImport(i, file) {   ; the picture becomes this card's pending one (images\custom_<mood>.pending.png or .gif)
@@ -625,6 +648,53 @@ PanelCleaned(i, made, r) {
     PanelLoadCard(i), PanelNote("“" MOOD_NOTES[i] "”: " r.msg ".")
 }
 
+PanelPanePick(*) {   ; the BACKGROUND card clicked: file picker
+    pnl.gui.Opt("+OwnDialogs")
+    f := FileSelect(1, , "Choose the picture behind the tiles", "Pictures (*.png; *.jpg; *.jpeg; *.bmp; *.gif)")
+    if f != "" && pnl
+        PanelPane(f)
+}
+
+PanelPane(file) {   ; the picture becomes the BACKGROUND card's pending one (images\pane.pending.png, still)
+    if why := PaneImport(file)
+        return PanelNote("That file didn't work: " why ".")
+    pnl.pane.gone := false, pnl.dirty := true, PanelLoadPane()
+    PanelNote("New background picture. Save to use it.")
+}
+
+; Remove: plain glass until Save, which deletes pane.png (gone; only if a picture is saved: else there's nothing to delete).
+; A pick waiting goes now. The focus moves to the card first, as the chip hides.
+PanelPaneRemove(*) {
+    try FileExist(PanePending()) && FileDelete(PanePending())
+    catch as e
+        return PanelNote("Couldn't remove the picture (" e.Message ").")
+    pnl.pane.gone := SettingsGet("PANE_PICTURE") != "", pnl.dirty := true
+    pnl.pane.card.ctl.Focus(), PanelLoadPane(), PanelNote("Plain glass again. Save to use it.")
+}
+
+; (Re)load the BACKGROUND card's picture: the pending pick, else PANE_PICTURE unless removed, cut from its middle to the shape
+; of the card's pane (PaintPane's) and scaled to it, its file let go at once (Save moves it, Cancel deletes it). Remove shows
+; while there is one.
+PanelLoadPane() {
+    p := pnl.pane, old := p.bm, bm := 0, pic := SettingsGet("PANE_PICTURE"), p.pending := FileExist(PanePending()) != ""
+    file := p.pending ? PanePending() : p.gone || pic = "" ? "" : UserImagesDir() "\" pic
+    if file != "" && !DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", file, "ptr*", &src := 0) {
+        DllCall("gdiplus\GdipGetImageWidth", "ptr", src, "uint*", &w := 0), DllCall("gdiplus\GdipGetImageHeight", "ptr", src, "uint*", &h := 0)
+        pw := p.card.w - Dpx(40), ph := p.card.h - Dpx(36), s := Max(pw / w, ph / h)   ; covers it: the overflow cut evenly
+        gr := Canvas(bm := NewBitmap(pw, ph)), DllCall("gdiplus\GdipSetInterpolationMode", "ptr", gr, "int", 7)   ; HighQualityBicubic
+        DllCall("gdiplus\GdipCreateImageAttributes", "ptr*", &ia := 0)
+        DllCall("gdiplus\GdipSetImageAttributesWrapMode", "ptr", ia, "int", 3, "uint", 0, "int", 0)   ; TileFlipXY: no faded edge
+        DllCall("gdiplus\GdipDrawImageRectRect", "ptr", gr, "ptr", src, "float", 0, "float", 0, "float", pw, "float", ph
+            , "float", (w - pw / s) / 2, "float", (h - ph / s) / 2, "float", pw / s, "float", ph / s, "int", 2, "ptr", ia, "ptr", 0, "ptr", 0)   ; UnitPixel
+        DllCall("gdiplus\GdipDisposeImageAttributes", "ptr", ia), DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
+        DllCall("gdiplus\GdipDisposeImage", "ptr", src)
+    }
+    p.bm := bm, p.remove.ctl.Visible := bm != 0       ; swapped in before the old one is freed: a paint may come between
+    if old
+        DllCall("gdiplus\GdipDisposeImage", "ptr", old)
+    PanelRedraw("pane"), PanelInvalidate(p.name.ctl.Hwnd), PanelInvalidate(pnl.hint.ctl.Hwnd)
+}
+
 ; Shortcut field j (1 = switching, 2 = staying open) clicked: capture the next combination, as AHK's KeyWaitCombo does. An
 ; InputHook blocks every key and ends on the first one that isn't a modifier; the script's hotkeys are suspended meanwhile,
 ; so Alt+Tab reaches it and neither switcher opens. PanelCaptured checks the result; PanelCaptureEnd undoes both.
@@ -694,6 +764,8 @@ PanelSave(*) {   ; write settings.ini (+ pictures) and reload; nothing changed =
             vals["IMG_PREFIX"] := "custom"
             break
         }
+    if pnl.pane && (err := PaneCommit(pnl.pane.gone))
+        return PanelFail(err)
     if err := SettingsWrite(vals)
         return PanelFail(err)
     Reload()
@@ -708,6 +780,8 @@ PanelVals() {   ; the panel's values for settings.ini, as Save writes them (the 
         vals["SWITCH_KEYS"] := pnl.keys[1], vals["STAY_KEYS"] := pnl.keys[2]
     if pnl.look
         vals["PANE_LOOK"] := pnl.look
+    if pnl.pane                                       ; Save makes a pick pane.png (PaneCommit); "" removes the line
+        vals["PANE_PICTURE"] := pnl.pane.pending ? "pane.png" : pnl.pane.gone ? "" : SettingsGet("PANE_PICTURE")
     return vals
 }
 

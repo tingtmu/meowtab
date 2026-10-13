@@ -141,13 +141,13 @@ PaintStepper(i, dc, w, h, st) {   ; − value +; i: 2 = some starts at, 3 = many
     PanelText(dc, "+", w - 2 * r, 0, 2 * r, h, pnl.f["body"], v < hi ? LOOK.muted : LOOK.faint, 0x25)
 }
 
-PaintChip(i, dc, w, h, st) {   ; "Clean" (background), a quiet pill
+PaintChip(label, dc, w, h, st) {   ; "Clean" (background) or "Remove", a quiet pill
     hov := st & 0x10000, off := st & 4, gr := Canvas(0, dc), r := h / 2
     FillRound(gr, 0.5, 0.5, w - 1, h - 1, r, Argb(hov ? LOOK.pillHi : "FFFFFF", hov ? 255 : 150))
     Stroke(gr, 0.5, 0.5, w - 1, h - 1, r, 1, Lip(220, hov ? LOOK.pillRim : LOOK.line, 220))
     FocusRing(gr, w, h, r, st)
     DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
-    PanelText(dc, "✧ Clean", 0, 0, w, h, pnl.f["small"], off ? LOOK.soft : LOOK.text, 0x25)
+    PanelText(dc, label, 0, 0, w, h, pnl.f["small"], off ? LOOK.soft : LOOK.text, 0x25)
 }
 
 PaintButton(label, kind, dc, w, h, st) {   ; kind 0 = text link, 1 = quiet, 2 = primary (the switcher's selection pill)
@@ -232,6 +232,36 @@ PaintLook(lk, name, sub, dc, w, h, st) {
     if lk = SettingsGet("PANE_LOOK")
         PanelText(dc, "in use", Dpx(4), wh + Dpx(10), w - Dpx(8), Dpx(22), pnl.f["small"], LOOK.muted, 0x26)
     PanelText(dc, sub, Dpx(4), wh + Dpx(32), w - Dpx(8), Dpx(18), pnl.f["small"], LOOK.muted)
+}
+
+; The BACKGROUND card: on a well like the LOOK cards', the pane in small (inset as theirs, so a pane's wide shape), its glass as
+; the picked look draws it (MiniPane, no tiles) under the picture as it is (pnl.pane.bm, already that shape). With none, it
+; says what a click does. A new, unsaved picture has the mood cards' dot.
+PaintPane(dc, w, h, st) {
+    p := pnl.pane, r := Dpx(12), hov := st & 0x10000, gr := Canvas(0, dc), well := RoundPath(0.5, 0.5, w - 1, h - 1, r)
+    br := FadeBrush(0, 0, w, h, 90, hov ? [[LOOK.pillHi, 255, 0], [LOOK.pill, 150, 1]] : [[LOOK.wellTop, 140, 0], [LOOK.wellBot, 80, 1]])
+    DllCall("gdiplus\GdipFillPath", "ptr", gr, "ptr", br, "ptr", well)
+    DllCall("gdiplus\GdipDeleteBrush", "ptr", br), DllCall("gdiplus\GdipDeletePath", "ptr", well)
+    x := Dpx(20), y := Dpx(16), pw := w - 2 * x, ph := h - Dpx(36), b := Dpx(10)
+    path := RoundPath(x - b, y - b + Dpx(3), pw + 2 * b, ph + 2 * b, Dpx(8) + b)   ; under the pane a soft shadow, as PaintLook's
+    EdgeFade(gr, path, LOOK.shadow, 0, 34, (pw - 2 * b) / (pw + 2 * b), (ph - 2 * b) / (ph + 2 * b), true)
+    DllCall("gdiplus\GdipDeletePath", "ptr", path), pal := MiniPane(gr, pnl.look, x, y, pw, ph, Dpx(8), [], 0, 0)
+    if p.bm {
+        path := RoundPath(x, y, pw, ph, Dpx(8)), DllCall("gdiplus\GdipSetClipPath", "ptr", gr, "ptr", path, "int", 0)
+        DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", p.bm, "int", x, "int", y, "int", pw, "int", ph)
+        DllCall("gdiplus\GdipResetClip", "ptr", gr), DllCall("gdiplus\GdipDeletePath", "ptr", path)
+    }
+    Stroke(gr, 0.5, 0.5, w - 1, h - 1, r, 1, Lip(210, hov ? LOOK.pillRim : LOOK.border, hov ? 230 : 120))
+    FocusRing(gr, w, h, r, st)
+    if p.pending
+        Disc(gr, Dpx(13), Dpx(13), Dpx(3.5), Argb(LOOK.accent, 255))
+    DllCall("gdiplus\GdipDeleteGraphics", "ptr", gr)
+    if !p.bm
+        PanelText(dc, "Choose a picture", x, y, pw, ph, pnl.f["small"], Mix(pal.text, pal.pane, 0.4), 0x25)
+}
+
+PaintPaneName(dc, w, h, st) {   ; under the BACKGROUND card, beside Remove: what it shows
+    PanelText(dc, !pnl.pane.bm ? "Plain glass" : pnl.pane.pending ? "New picture" : "Your picture", 0, 0, w, h, pnl.f["cap"], LOOK.text)
 }
 
 ; The WINDOWS tick box's row (all of it takes the click): a rounded box, white in a rim of the border colour, or while ticked
@@ -345,8 +375,8 @@ MiniPal(lk) => SettingsGet(lk = "velvet" ? (pnl.dark ? "VELVET_DARK" : "VELVET_L
 
 ; Look lk's pane in small, as the switcher draws it in Windows' mode and accent (pnl.dark, pnl.accent): its glass in x, y, w, h
 ; (corners r), opaque as where there's no acrylic, then its tiles ([x, y, w, h] each, a header hdr tall over a window), tile
-; sel selected the look's way. A tile no taller than its header is the title sample's: its icon and title are the caller's.
-; Returns the palette.
+; sel selected the look's way (none: the BACKGROUND card's glass). A tile no taller than its header is the title sample's: its
+; icon and title are the caller's. Returns the palette.
 MiniPane(gr, lk, x, y, w, h, r, tiles, hdr, sel) {
     p := MiniPal(lk), vel := lk = "velvet", glass := RoundPath(x, y, w, h, r)
     DllCall("gdiplus\GdipCreateSolidFill", "uint", Argb(p.pane, 255), "ptr*", &br := 0)
@@ -369,7 +399,8 @@ MiniPane(gr, lk, x, y, w, h, r, tiles, hdr, sel) {
     for i, t in tiles
         if i != sel
             MiniTile(gr, p, vel, i, hdr, t*)
-    MiniSelected(gr, p, vel, sel, hdr, tiles[sel]*)
+    if sel
+        MiniSelected(gr, p, vel, sel, hdr, tiles[sel]*)
     return p
 }
 

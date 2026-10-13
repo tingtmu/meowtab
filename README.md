@@ -187,6 +187,7 @@ Double-click the tray icon, or right-click it and choose **Settings…**. The de
 - **Peek height.** How much of the picture shows above the pane with a single window, and once the count reaches "many". The two little scenes preview it with your own pictures.
 - **Look.** Two cards, **Velvet** (softer and warmer up close: warm glass, rounder tiles, a lifted selection) and **Windows 11** (as Windows draws it), each a small picture of the switcher in that look, in your Windows mode and accent colour. Click a card, or press Space on it, to pick it: a check marks the picked look, and **in use** the one MeowTab has now. The peek scenes and the title sample show the picked look at once, and **Save** applies it. `meowtab-classic` has no Look section.
   Velvet's motion (the pane easing in, the selection lighting up in place, the picture settling with a small bounce) follows Windows' **Animation effects** setting (Settings > Accessibility > Visual effects): with it off, nothing moves. A GIF in the peek, in both looks, and on the panel's cards follows the same setting: with it off, it shows its first frame, still.
+- **Background.** One card shows your picture cropped to the pane's shape, or plain glass. Click it, or drop a picture on it, to choose one; **Remove** goes back to plain glass, and **Save** applies it. `meowtab-classic` has no Background section.
 - **Title font.** Any installed font, at 10 to 24 pt.
 - **Windows.** One tick box, **Only this monitor's windows**. Ticked, the switcher lists only the windows on the monitor the pane opens on; unticked (the default), it lists every monitor's.
 - **Shortcuts.** Click **Switch windows** or **Stay open**, then press the new combination; **Esc** keeps the old one. Switching takes Alt, Ctrl or Win with one key, and the same with Shift goes back (shown under it). A combination that can't work, such as one with Esc or the arrows or one already in use, is refused, and the line under the cards says why. **Defaults** puts back Alt+Tab and Ctrl+Alt+Tab. `meowtab-classic` has no Shortcuts section.
@@ -200,6 +201,8 @@ The panel is built when you open it and freed when you close it, so it never slo
 ## Use your own pictures
 
 The settings panel is the easy way. Your pictures are copied into `%APPDATA%\MeowTab\images\` as `custom_few.png`, `custom_some.png` and `custom_many.png`; the shipped `chill_*` cats are never overwritten. Large pictures are scaled down to 1024 px and photos are turned upright. An animated GIF keeps moving and is saved as `custom_<mood>.gif`: one larger than 512 px is scaled down to 512 px, and one with more than 100 frames is refused.
+
+The pane can show a picture of your own behind the tiles too, softly blended over the frosted glass so the titles stay readable. Pick it in the panel's **Background** section. It is copied to `%APPDATA%\MeowTab\images\pane.png`, turned upright and scaled down to at most 2560 px; a GIF shows its first frame, still. **Reset to defaults** turns it off and keeps the file. Builds before 22H2 have no frosted glass to show it on, so their panel has no Background section.
 
 By hand: put three PNGs or GIFs in `%APPDATA%\MeowTab\images\` named `<prefix>_few.png`, `<prefix>_some.png` and `<prefix>_many.png` (or `.gif`; a `.gif` wins over a `.png` of the same name, and plays at most its first 100 frames), set `IMG_PREFIX=<prefix>` in `settings.ini`, then **Reload Script** from the tray menu.
 
@@ -237,6 +240,7 @@ The block at the top of each script holds the built-in defaults; `%APPDATA%\Meow
 | `STAY_KEYS` | `Ctrl+Alt+Tab` | main | panel | Opens the switcher that stays open once you let go. |
 | `PANE_LOOK` | `velvet` | main | panel | The switcher's look: `velvet` or `windows11`. |
 | `MONITORS` | `all` | both | panel | Which monitors' windows are listed: `all`, or `current` for only the monitor the pane opens on (any letter case; the panel's **Only this monitor's windows**). |
+| `PANE_PICTURE` | empty | main | panel | The pane's background picture: its file name in `%APPDATA%\MeowTab\images` (the panel sets `pane.png`). Empty means none, plain glass. A missing file falls back to none, with a notification. |
 | `IMG_SIZE` | `250` / `100` | main / classic | ini | Picture size in pixels. Each GIF frame is kept decoded, so long GIFs on every mood take about 75 MB at the default 250 and about 430 MB at the maximum 600 (three 100-frame GIFs). |
 | `WM_PROCESS` | empty | both | ini | Exit when this process is gone, e.g. `glazewm.exe`. |
 | `LIST_WIDTH` | `700` | classic | ini | List width in pixels. |

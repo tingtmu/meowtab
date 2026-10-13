@@ -86,14 +86,14 @@ PaneFree() {   ; on hide: everything one open made; a scroll stops where it is, 
 
 ; ----- Surface: a pane-sized 32bpp DIB that GDI+ draws into as premultiplied ARGB (real alpha over the glass) -----
 
-SurfaceMake(w, h) {   ; {w, h, dc, hbm, old, bm, gr}; SurfaceFree frees it
+SurfaceMake(w, h) {   ; {w, h, dc, hbm, bits, old, bm, gr}; SurfaceFree frees it
     bi := Buffer(40, 0), NumPut("uint", 40, "int", w, "int", -h, "ushort", 1, "ushort", 32, bi)   ; top-down BITMAPINFOHEADER
     hbm := DllCall("CreateDIBSection", "ptr", 0, "ptr", bi, "uint", 0, "ptr*", &bits := 0, "ptr", 0, "uint", 0, "ptr")
     dc := DllCall("CreateCompatibleDC", "ptr", 0, "ptr"), old := DllCall("SelectObject", "ptr", dc, "ptr", hbm, "ptr")
     DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", w, "int", h, "int", 4 * w, "int", 0xE200B, "ptr", bits, "ptr*", &bm := 0)   ; PARGB on the bits
     gr := Canvas(bm)
     DllCall("gdiplus\GdipSetTextRenderingHint", "ptr", gr, "int", TEXT_HINT)   ; grayscale: glyph coverage goes into alpha
-    return {w: w, h: h, dc: dc, hbm: hbm, old: old, bm: bm, gr: gr}
+    return {w: w, h: h, dc: dc, hbm: hbm, bits: bits, old: old, bm: bm, gr: gr}
 }
 
 SurfaceFree(s) {
@@ -374,7 +374,11 @@ DrawBar(gr) {   ; the thumb: a pill in the palette's `bar`, at the bar's opacity
 Render(s) {   ; the pane's pixels for the current state: its edge, the tiles in view (cut just inside it), hover, selection, scroll bar
     if PANE_LOOK = "velvet"
         return VelvetRender(s)
-    DllCall("gdiplus\GdipGraphicsClear", "ptr", s.gr, "uint", BACKDROP ? 0 : Argb(pal.pane, 255))   ; clear glass / opaque pane
+    if pic := PaneLayer(s.w, s.h)                  ; the background picture's layer in place of the clear glass: one copy
+        DllCall("BitBlt", "ptr", s.dc, "int", 0, "int", 0, "int", s.w, "int", s.h, "ptr", pic.dc, "int", 0, "int", 0, "uint", 0xCC0020)   ; SRCCOPY
+        , DllCall("GdiFlush")                      ; in the bits before GDI+ draws on them
+    else
+        DllCall("gdiplus\GdipGraphicsClear", "ptr", s.gr, "uint", BACKDROP ? 0 : Argb(pal.pane, 255))   ; clear glass / opaque pane
     DrawEdge(s.gr, s.w, s.h)
     DllCall("gdiplus\GdipSetClipRectI", "ptr", s.gr, "int", 0, "int", Inset(), "int", s.w, "int", s.h - 2 * Inset(), "int", 0)   ; CombineModeReplace
     for i, t in tiles

@@ -17,9 +17,9 @@
 ; The samples (after the warm-up, every 50 opens, after the last) and the verdicts also go to <Out>\opens-<tag>.txt.
 ; Run from the repo root:  powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 opens -Look velvet [-Count <n>]
 ;                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 opens -Look velvet -Validate
-; (also [-Root <dir>] [-Out <dir>] [-Tag <name>], see run.ps1; default out: build\checks\<tag>). Keep hands off the mouse and keyboard
-; while it runs (about 2.5 min for 200). Exit code: 0 ALL PASSED, 1 a FAIL, 2 the safety exit, 3 an error, 4 no screen (SKIP), 5 a
-; stray AutoHotkey window.
+; (also [-Root <dir>] [-Out <dir>] [-Tag <name>] [-Picture <file>], see run.ps1; default out: build\checks\<tag>; with a picture, its
+; layer is made again at each open too). Keep hands off the mouse and keyboard while it runs (about 2.5 min for 200). Exit code:
+; 0 ALL PASSED, 1 a FAIL, 2 the safety exit, 3 an error, 4 no screen (SKIP), 5 a stray AutoHotkey window.
 global lateCalls := 0, seenCalls := Map(), opFails := 0, opText := ""   ; timer calls after the last close (a Map then) and before it
 SetTimer(Overrun, -(Integer(A_Args[3]) + 70) * 1000)   ; lib.ahk's safety exit, later: about 0.7 s an open, and room
 OpensMain(A_Args[1], A_Args[2], Integer(A_Args[3]))

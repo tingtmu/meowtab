@@ -632,6 +632,8 @@ IniWrite "CURRENT", DATA_DIR "\settings.ini", "settings", "MONITORS"
 SettingsLoad()
 Check("MONITORS=CURRENT in settings.ini reads as current", MONITORS ", " SETTINGS_ISSUES.Length, "current, 0")
 MONITORS := "all", IniDelete(DATA_DIR "\settings.ini", "settings", "MONITORS")   ; the built-in again
+#Include %A_LineFile%\..\pane-files.ahk
+#Include %A_LineFile%\..\pane-draw.ahk
 
 ; Shortcuts: SWITCH_KEYS / STAY_KEYS as settings.ini has them (KeysParse), registered by KeysRegister. Custom ones are
 ; checked holding Ctrl: if a check goes wrong, a held Win or Alt could open Start or a menu bar.
@@ -846,6 +848,7 @@ PanelClose(), MONITORS := "current", SettingsOpen(), Wait(300), got := TickBox()
 Check("Reset to defaults leaves no MONITORS line, and the panel opens ticked when MONITORS is current", was " -> " err "[" Ini("MONITORS") "], " got, "current -> [], ticked")
 PanelClose(), PANEL_ROOM := 0
 #Include %A_LineFile%\..\gif-panel.ahk
+#Include %A_LineFile%\..\pane-panel.ahk
 ; Classic's own panel, opened by Classic in a process of its own on a data folder of its own: no LOOK section, as Classic has
 ; no PANE_LOOK (the panel shows the section where the script defines it), but the WINDOWS one, its label and tick box.
 classic := DATA_DIR "\classic-panel.ahk", answer := DATA_DIR "\classic-panel.txt"

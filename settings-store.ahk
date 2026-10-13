@@ -3,13 +3,13 @@
 ; defined here are set late in the auto-execute section, so SettingsLoad must not rely on them).
 
 ; Keys settings.ini may set: [name, kind, low, high]. A key applies only if the running script defines it
-; (PEEK_*, *_KEYS and PANE_LOOK exist in meowtab.ahk only, IMG_ROWS in meowtab-classic.ahk only). The panel edits the first seven,
-; *_KEYS, PANE_LOOK and MONITORS.
+; (PEEK_*, *_KEYS, PANE_LOOK and PANE_PICTURE exist in meowtab.ahk only, IMG_ROWS in meowtab-classic.ahk only). The panel edits
+; the first seven, *_KEYS, PANE_LOOK, MONITORS and PANE_PICTURE.
 SettingsSchema() => [["FONT_NAME", "font"], ["FONT_SIZE", "int", 10, 24], ["IMG_PREFIX", "prefix"]
     , ["SOME_FROM", "int", 2, 29], ["MANY_FROM", "int", 3, 30], ["PEEK_MIN", "num", 0.3, 1], ["PEEK_MAX", "num", 0.3, 1]
     , ["LIST_WIDTH", "int", 300, 4000], ["MAX_ROWS", "int", 3, 50], ["PREVIEW_W", "int", 0, 4000]
     , ["IMG_SIZE", "int", 40, 600], ["IMG_ROWS", "int", 0, 50], ["WM_PROCESS", "process"]
-    , ["SWITCH_KEYS", "keys"], ["STAY_KEYS", "keys"], ["PANE_LOOK", "look"], ["MONITORS", "monitors"]]
+    , ["SWITCH_KEYS", "keys"], ["STAY_KEYS", "keys"], ["PANE_LOOK", "look"], ["MONITORS", "monitors"], ["PANE_PICTURE", "picture"]]
 
 ; Where the user's settings and pictures live, so replacing the app folder keeps them. A script may set DATA_DIR
 ; before including meowtab.ahk (the test and readme-shots do); read here, not at top level, so SettingsLoad sees it.
@@ -31,6 +31,7 @@ MoodImage(prefix, mood) {   ; user's first, then the app's; in each folder a .gi
 }
 ; Picked in the panel, not saved yet: the mood's pending .gif, else its .png (whether or not there is one).
 PendingImage(mood) => FileExist(g := UserImagesDir() "\custom_" mood ".pending.gif") ? g : UserImagesDir() "\custom_" mood ".pending.png"
+PanePending() => UserImagesDir() "\pane.pending.png"   ; the pane's background picture, picked in the panel, not saved yet
 
 ; Startup: remember the built-in defaults, then overlay settings.ini. Every value is checked (type, range,
 ; installed font, existing images); a bad one keeps its default and is reported once (tray tip + debug log).
@@ -89,6 +90,11 @@ SettingsCheck(s, raw, def, &why) {
         return raw = "velvet" || raw = "windows11" ? StrLower(raw) : (why := "expected velvet or windows11, using " def, def)
     case "monitors":
         return raw = "all" || raw = "current" ? StrLower(raw) : (why := "expected all or current, using " def, def)
+    case "picture":                                          ; a file in the user's images folder, by its name alone
+        if !RegExMatch(raw, "^[^\\/:*?`"<>|]+$")
+            return (why := "not a plain file name, using " (def || "none"), def)
+        a := FileExist(UserImagesDir() "\" raw)
+        return a != "" && !InStr(a, "D") ? raw : (why := "no such file in " UserImagesDir() ", using " (def || "none"), def)
     }
 }
 
@@ -151,7 +157,7 @@ SettingsReset() {
         return ""
     try {
         for i, s in SettingsSchema()
-            if i <= 7 || s[2] ~= "^(keys|look|monitors)$" && SettingsHas(s[1])   ; the shortcuts and the look only where they apply: Classic keeps them
+            if i <= 7 || s[2] ~= "^(keys|look|monitors|picture)$" && SettingsHas(s[1])   ; the shortcuts, the look and the picture only where they apply: Classic keeps them
                 IniDelete file, "settings", s[1]
         rest := "", sections := ""
         try rest := IniRead(file, "settings")
@@ -212,10 +218,10 @@ KeysPair() {   ; the stay-open shortcut must differ from switching and going bac
 
 ; ----- Pictures -----
 
-; Any GDI+-readable picture -> dest as PNG, turned upright (EXIF) and at most 1024 px, so the switchers'
-; startup stays quick. A PNG that needs neither is copied as is. An animated GIF stays one (ImportGif). dest's
-; extension becomes .png or .gif, and the mood's picture in the other format goes. "" = ok, else why not.
-ImportImage(src, dest) {
+; Any GDI+-readable picture -> dest as PNG, turned upright (EXIF) and at most side px (1024 keeps the switchers'
+; startup quick). A PNG that needs neither is copied as is. An animated GIF stays one (ImportGif); still: its first
+; frame. dest's extension becomes .png or .gif, and the mood's picture in the other format goes. "" = ok, else why not.
+ImportImage(src, dest, side := 1024, still := false) {
     SplitPath dest, , &dir
     try DirCreate dir                                    ; the user's images folder may not exist yet
     catch as e
@@ -225,9 +231,9 @@ ImportImage(src, dest) {
     if turn := ExifTurn(bm)
         DllCall("gdiplus\GdipImageRotateFlip", "ptr", bm, "int", turn)
     DllCall("gdiplus\GdipGetImageWidth", "ptr", bm, "uint*", &w := 0), DllCall("gdiplus\GdipGetImageHeight", "ptr", bm, "uint*", &h := 0)
-    if (n := GifCount(bm)) > 1
+    if !still && (n := GifCount(bm)) > 1
         return (DllCall("gdiplus\GdipDisposeImage", "ptr", bm), ImportGif(src, n, Max(w, h), RegExReplace(dest, "\.\w+$", ".gif")))
-    s := Min(1, 1024 / Max(w, h, 1)), dest := RegExReplace(dest, "\.\w+$", ".png")
+    s := Min(1, side / Max(w, h, 1)), dest := RegExReplace(dest, "\.\w+$", ".png")
     if s = 1 && !turn && src ~= "i)\.png$" {
         DllCall("gdiplus\GdipDisposeImage", "ptr", bm)
         try FileCopy src, dest, 1
@@ -288,8 +294,19 @@ ImagesCommit(prefix) {
     return ""
 }
 
+PaneImport(src) => ImportImage(src, PanePending(), 2560, true)   ; a picture for the pane's background: still, at most 2560 px. "" = ok
+
+; Save: the pending pane picture becomes pane.png; with the picture removed (gone), pane.png goes instead. "" = ok.
+PaneCommit(gone) {
+    pane := UserImagesDir() "\pane.png"
+    try gone ? FileExist(pane) && FileDelete(pane) : FileExist(PanePending()) && FileMove(PanePending(), pane, 1)
+    catch as e
+        return "couldn't save the background picture (" e.Message ")"
+    return ""
+}
+
 PendingClear() {   ; drop unsaved pictures (and any leftover backups of them)
-    Loop Files UserImagesDir() "\custom_*.pending.*"
+    Loop Files UserImagesDir() "\*.pending.*"
         try FileDelete A_LoopFileFullPath
         catch as e
             OutputDebug "meowtab: couldn't delete " A_LoopFileFullPath " (" e.Message ")"

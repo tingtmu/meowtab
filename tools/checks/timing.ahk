@@ -2,7 +2,8 @@
 ; user's own windows are never listed). run.ps1 includes an instrumented COPY of the root's sources: the frame functions it finds
 ; (ScrollTick, SelectTile, PaneWheel, and any -Wrap names) are renamed <name>__orig and wrapped, so timers and callers time
 ; each call into TimeLog. Calls the harness makes itself (CollectWindows, ShowPane, Step) are timed here.
-;   i    open: CollectWindows + ShowPane(true), 10 times after GDI+'s warm-up (and the wait for DWM's next frame, DwmFlush)
+;   i    open: CollectWindows + ShowPane(true), 10 times after GDI+'s warm-up (and the wait for DWM's next frame, DwmFlush); with
+;        run.ps1 -Alternate, on 3 and 6 windows by turns, so each open has a new pane size (its layers made again)
 ;   ii   Tab held: Step(1) every ~33 ms for 2 s
 ;   iii  wheel: 6 notches down and 6 up (PostMessage), 150 ms apart, then 40 ms apart
 ;   iv   drag: a real mouse drag of the scroll bar, 12 steps down and 12 back up (about 1 s of ScrollTick frames); not run at HEAD
@@ -10,19 +11,19 @@
 ; and how many took over 8 ms; raw samples go to <Out>\timing-<tag>.txt.
 ; Run from the repo root:  powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 timing
 ;                          powershell -ExecutionPolicy Bypass -File tools\checks\run.ps1 timing -Validate
-; (also [-Root <dir>] [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...] [-Gif <file>], see run.ps1; default out: build\checks\<tag>).
-; Keep hands off the mouse and keyboard while it runs (about 40 s).
+; (also [-Root <dir>] [-Out <dir>] [-Tag <name>] [-Wrap <fn>,...] [-Gif <file>] [-Picture <file>] [-Alternate], see run.ps1;
+; default out: build\checks\<tag>). Keep hands off the mouse and keyboard while it runs (about 40 s).
 global SAMPLES := Map(), phase := ""               ; samples (ms) per "phase / call"
-TimingMain(A_Args[1], A_Args[2])
+TimingMain(A_Args[1], A_Args[2], A_Args.Length > 2)
 ExitApp 0
 
-TimingMain(out, tag) {
+TimingMain(out, tag, alt) {
     DirCreate out
     Stage(30), SetWallpaper(false)                     ; light, whatever the Windows mode is; GDI+'s warm-up ran 200 ms after the start
     Park()
     c0 := Qpc(), t0 := A_TickCount, Sleep(100)
-    clock := "QPC " Round(Qpc() - c0, 1) " ms vs A_TickCount " A_TickCount - t0 " ms over Sleep(100)"
-    OpenTimes(10), TabHeld(), WheelNotches(), DragTimes()
+    clock := "QPC " Round(Qpc() - c0, 1) " ms vs A_TickCount " A_TickCount - t0 " ms over Sleep(100)" (alt ? "; i: 3 and 6 windows by turns" : "")
+    OpenTimes(10, alt), TabHeld(), WheelNotches(), DragTimes()
     Report(out, tag, clock)
 }
 
@@ -47,12 +48,12 @@ Timed(what, fn) {   ; one call of fn: its time goes into the current phase and c
     return dt
 }
 
-OpenTimes(count) {
+OpenTimes(count, alt) {
     global phase := "i open"
     Loop count {
         Park(), Sleep(50)
         cw := Timed("1 CollectWindows", CollectWindows)   ; the user's windows are counted in its time, never listed
-        ListDemo(30)                                      ; wins := the 30 demo windows, as Step leaves them after its list
+        ListDemo(alt ? (A_Index & 1 ? 3 : 6) : 30)        ; wins := the demo windows, as Step leaves them after its list
         sp := Timed("2 ShowPane", () => ShowPane(true))
         TimeLog("3 both", cw + sp)
         t := Qpc(), DllCall("dwmapi\DwmFlush")

@@ -26,6 +26,7 @@ SWITCH_KEYS := "Alt+Tab"      ; Win, Ctrl or Alt held + a key: opens the pane, m
 STAY_KEYS   := "Ctrl+Alt+Tab" ; opens a pane that stays open once let go: Enter switches, Esc closes
 PANE_LOOK   := "velvet"       ; the pane's look: "velvet" (softer and warmer up close) or "windows11" (as Windows draws it)
 MONITORS    := "all"          ; the windows listed: "all" monitors' or only the "current" one's (the monitor the pane opens on)
+PANE_PICTURE := ""            ; a picture behind the tiles: its file name in %APPDATA%\MeowTab\images ("" = none: plain glass)
 SettingsLoad()        ; settings.ini overrides (validated; see settings-panel.ahk)
 ; ==========================================================================
 
@@ -40,6 +41,7 @@ ASPECT_MIN  := 0.75, ASPECT_MAX := 2.0  ; thumbnail slot width / height, clamped
 TILE_MIN_W  := 134     ; narrowest tile (as native), so a narrow window's title still reads; its thumbnail is centred in it
 PANE_MARGIN := 16      ; screen room kept above the image and below the pane
 PANE_R      := 8       ; the pane's corner radius, as DWM rounds it (DWMWCP_ROUND); its drawn edge follows it
+PANE_PIC_ALPHA := 102  ; the background picture (PANE_PICTURE) over the glass, in both looks: its alpha (40 %)
 TILE_R      := 12      ; tile corner radius
 HEADER_H    := 40      ; header strip over the thumbnail; taller when the title font needs it (its line height + 24)
 ICON_PX     := 16, ICON_X := 12, TITLE_X := 36   ; header: app icon size and left edge, the title's left edge
@@ -101,6 +103,7 @@ global wins := [], idx := 0, cycling := false, opens := 0   ; listed windows (mo
 global grid := 0, tiles := []                  ; the open pane's layout (GridLayout) and one tile per window
 global thumbs := [], icons := Map(), surf := 0  ; per open: DWM thumbnails, app icons (hwnd -> [header, big]), drawing surface
 global velvetBase := 0                         ; Velvet: the surface's base layer, as big as it, kept between opens (VelvetRender)
+global panePic := 0, picLayer := 0             ; the background picture (PanePicLoad), and its layer as big as the pane, kept between opens (PaneLayer)
 global motion := false, glow := 0, velvetIn := 0   ; Velvet's motion this open (Animates); the selection's light-up (VelvetGlow); the ease-in's start
 global hover := 0, hoverX := false             ; tile under the mouse (0 = none), and whether on its close button
 global mouseAt := 0, pressAt := 0, clickAt := 0, wheel := 0, tracking := false   ; mouse input, noted for the timers (see PaneMouse)
@@ -128,6 +131,7 @@ for msg in [0x200, 0x201, 0x202, 0x203, 0x2A3, 0x20A]   ; WM_MOUSEMOVE, WM_LBUTT
     OnMessage(msg, PaneMouse)
 OnMessage(0x21, PaneNoActivate)              ; WM_MOUSEACTIVATE: a press keeps the glass live
 OnMessage(0x1A, ThemeChanged)                ; WM_SETTINGCHANGE: light / dark mode switched
+PanePicLoad()                                ; the background picture (PANE_PICTURE), once: GDI+ is up, BACKDROP known
 ; The image lives in its own per-pixel-alpha window, stacked just below the pane; only its rows above the
 ; pane's top edge show. Click-through and never activated (LAYERED|TRANSPARENT|NOACTIVATE).
 global peek := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale +E0x08080020")
@@ -382,10 +386,11 @@ IsSwitchable(hwnd) {
     return !cloaked
 }
 
-; The native look (theme, acrylic, grid, drawing, thumbnails, mouse), the Velvet look's drawing, app icons, the
-; peeking image (functions only); the Settings… panel and settings.ini. alttab-native.ahk goes first: its #Warn covers the rest.
+; The native look (theme, acrylic, grid, drawing, thumbnails, mouse), the Velvet look's drawing, the background picture, app
+; icons, the peeking image (functions only); the Settings… panel and settings.ini. alttab-native.ahk goes first: its #Warn covers the rest.
 #Include %A_LineFile%\..\alttab-native.ahk
 #Include %A_LineFile%\..\alttab-velvet.ahk
+#Include %A_LineFile%\..\pane-picture.ahk
 #Include %A_LineFile%\..\alttab-icons.ahk
 #Include %A_LineFile%\..\alttab-peek.ahk
 #Include %A_LineFile%\..\settings-panel.ahk

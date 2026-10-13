@@ -8,6 +8,9 @@
 ;     [windows]: how many demo windows to list (default 5; 12 and more reach PEEK_MAX).
 ;     [look]: the pane's look, velvet or windows11 (default: the app's default look).
 ;     [tint]: Velvet's tint alpha for this shot, 0-255, in place of the palette's (its colour stays): to compare strengths.
+;       - keeps the palette's (to give a picture after it).
+;     [picture]: a background picture for the pane, imported into the temporary data folder as the panel's Save does
+;       (pane.png); [strength]: its alpha, 0-255, in place of PANE_PIC_ALPHA.
 ;   hold: light's pane on 2 demo windows with the shipped images\chill.gif as the "few" picture, playing (as with Windows'
 ;     Animation effects on), held open <seconds> for a screen recording (docs\meowtab-gif.gif) instead of captured: prints
 ;     the crop, about 960 px wide, and reports a window that isn't ours in it, also one that shows up while it holds.
@@ -16,21 +19,28 @@
 ;     section with no scroll bar, also where that's taller than the screen: it's raised until all of it has been on the
 ;     screen, and PrintWindow takes DWM's copy of the whole window. At this display's own scale: docs\settings.png is taken
 ;     on a 150 % display.
-; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint]
+; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint | -]
+;                              [picture] [strength]
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk settings <out.png>
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk hold <seconds 1-100>
 ; (default out: docs\meowtab.png / docs\meowtab-dark.png). Keep hands off the mouse and keyboard for ~5 s.
 DATA_DIR := A_Temp "\meowtab-shots-" A_TickCount   ; a new, empty data folder: default settings, and the user's own are never read or changed
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))
 if A_Args.Length > 3 && !(A_Args[4] = "velvet" || A_Args[4] = "windows11")
-    || A_Args.Length > 4 && !(IsInteger(A_Args[5]) && A_Args[5] >= 0 && A_Args[5] <= 255)
-    FileAppend("usage: readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint 0-255]`n", "*"), ExitApp(1)
+    || A_Args.Length > 4 && !(A_Args[5] = "-" || IsInteger(A_Args[5]) && A_Args[5] >= 0 && A_Args[5] <= 255)
+    || A_Args.Length > 6 && !(IsInteger(A_Args[7]) && A_Args[7] >= 0 && A_Args[7] <= 255)
+    FileAppend("usage: readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint 0-255 | -] [picture] [strength 0-255]`n", "*"), ExitApp(1)
 if A_Args.Length > 3                               ; the look, in that folder's settings.ini: the app's startup reads it (and picks the title font by it)
     DirCreate(DATA_DIR), IniWrite(A_Args[4], DATA_DIR "\settings.ini", "settings", "PANE_LOOK")
 #Include %A_LineFile%\..\..\meowtab.ahk
-if A_Args.Length > 4                               ; the tint: Velvet's palettes as copies with that alpha (each keeps its colour)
+if A_Args.Length > 4 && A_Args[5] != "-"          ; the tint: Velvet's palettes as copies with that alpha (each keeps its colour)
     VELVET_LIGHT := VELVET_LIGHT.Clone(), VELVET_LIGHT.tint := [VELVET_LIGHT.tint[1], Integer(A_Args[5])]
     , VELVET_DARK := VELVET_DARK.Clone(), VELVET_DARK.tint := [VELVET_DARK.tint[1], Integer(A_Args[5])]
+if A_Args.Length > 5 {                             ; the picture: pane.png in that folder, as the panel's Save makes it, loaded again at the strength
+    if (why := PaneImport(A_Args[6]) PaneCommit(false)) != ""
+        FileAppend("can't use " A_Args[6] ": " why "`n", "*"), ExitApp(1)
+    PANE_PICTURE := "pane.png", PANE_PIC_ALPHA := A_Args.Length > 6 ? Integer(A_Args[7]) : PANE_PIC_ALPHA, PanePicLoad()
+}
 
 REPO := RegExReplace(A_LineFile, "\\[^\\]+\\[^\\]+$")   ; the folder above tools\
 global imgs := [], delays := [], spans := []   ; the include looked for the pictures next to this script: load the repo's
