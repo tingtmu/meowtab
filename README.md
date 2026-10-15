@@ -43,7 +43,7 @@ MeowTab ships one, `chill.gif`, in its `images` folder (the PNG cats stay the de
 
 ## Quick start
 
-Windows 11, 64-bit. The acrylic pane needs 22H2 or later; older builds get a solid pane. The released exes need no AutoHotkey. Exit MeowTab from the tray before updating or removing it; settings and pictures stay in `%APPDATA%\MeowTab` unless you [remove them too](#remove-meowtab).
+Windows 11, 64-bit. The acrylic pane needs 22H2 or later; older builds get a solid pane. The released exes need no AutoHotkey. Exit MeowTab from the tray before updating or removing it, and before removing it untick **Start at login** there too; settings and pictures stay in `%APPDATA%\MeowTab` unless you [remove them too](#remove-meowtab).
 
 **PowerShell** (5.1 or 7): install the latest release and start it, without administrator rights or a package manager. The readable [helper source](https://github.com/tingtmu/meowtab/blob/main/tools/install.ps1) downloads the ZIP and checksum from the same release and verifies it before installing.
 
@@ -74,7 +74,7 @@ It starts after installation and each update; later use **Scoop Apps > MeowTab**
 
 **Portable ZIP:** download `meowtab.zip` from the [latest release](https://github.com/tingtmu/meowtab/releases/latest) or [direct link](https://github.com/tingtmu/meowtab/releases/latest/download/meowtab.zip), [check the download](#check-the-download), unzip it into your own folder and keep that folder together. Double-click `meowtab.exe`. Update by downloading and unzipping the latest release again; remove by deleting the app folder.
 
-**First run:** the first time it starts, MeowTab asks whether to put an icon on your desktop (it opens the settings panel); either answer is remembered. Then hold **Alt** and press **Tab**. Double-click the sleepy-cat tray icon to open the panel; right-click to reload, exit or tick **Desktop icon**.
+**First run:** the first time it starts, MeowTab sets itself to start when you sign in, and asks whether to put an icon on your desktop (it opens the settings panel); either answer is remembered. Then hold **Alt** and press **Tab**. Double-click the sleepy-cat tray icon to open the panel; right-click to reload, exit, tick **Desktop icon**, or untick **Start at login** so it no longer starts when you sign in.
 
 `meowtab-classic.exe` is the original layout: a list of titles with one large preview beside it, and the picture inside the pane's bottom-left corner. Run only one of the two at a time. Running from source is in [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -165,7 +165,7 @@ The hashes come from the [GitHub Actions build](.github/workflows/build.yml) of 
 
 ## Remove MeowTab
 
-If you ticked **Desktop icon** in the tray menu, untick it (that removes the shortcut). Exit from the tray, then delete the app folder or use your uninstall command in [Quick start](#quick-start). Remove any startup shortcut you added. Settings and pictures remain in `%APPDATA%\MeowTab` for a later install; to delete them too:
+In the tray menu, untick **Start at login**, and **Desktop icon** if you ticked it (each removes its shortcut). Exit from the tray, then delete the app folder or use your uninstall command in [Quick start](#quick-start). Settings and pictures remain in `%APPDATA%\MeowTab` for a later install; to delete them too:
 
 ```
 Remove-Item "$env:APPDATA\MeowTab" -Recurse
@@ -175,7 +175,6 @@ Remove-Item "$env:APPDATA\MeowTab" -Recurse
 
 - **Administrator windows.** Windows blocks a normal app's hotkeys while an elevated window is focused, so you get built-in Alt+Tab. Run MeowTab as administrator to cover those windows.
 - **No network.** MeowTab never connects to the network; settings and pictures stay on your PC in `%APPDATA%\MeowTab`.
-- **Run at login.** Press `Win+R`, type `shell:startup` and put a shortcut to `meowtab.exe` (or `meowtab.ahk`) in that folder.
 - **Known issues.** Preview corners are square at the bottom. With **Only this monitor's windows** ticked (`MONITORS=current`), Alt+Tab does nothing on a monitor without windows.
 
 **GlazeWM (optional):** add MeowTab to `startup_commands` in its `config.yaml`:

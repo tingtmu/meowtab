@@ -17,6 +17,9 @@
         ]
     ],
     "post_install": "Start-Process \"$dir\\meowtab.exe\"",
+    "uninstaller": {
+        "script": "if ($cmd -eq 'uninstall') { 'meowtab.lnk', 'meowtab-classic.lnk' | ForEach-Object { Remove-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath('Startup')) $_) -ErrorAction SilentlyContinue } }"
+    },
     "checkver": "github",
     "autoupdate": {
         "url": "https://github.com/tingtmu/meowtab/releases/download/v$version/meowtab.zip",

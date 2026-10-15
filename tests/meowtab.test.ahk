@@ -1,13 +1,14 @@
 #Requires AutoHotkey v2.0
 ; Integration test for meowtab.ahk. Opens 5 temporary windows on the
 ; current desktop (a tiling WM may tile them briefly), then checks ordering.
-; Its checks run in parts it includes in place, in order: switching.ahk, grid.ahk, look.ahk, settings-data.ahk and panel.ahk.
+; Its checks run in parts it includes in place, in order: switching.ahk, grid.ahk, look.ahk, settings-data.ahk, panel.ahk and login.ahk.
 ; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tests\meowtab.test.ahk [velvet | windows11] | more
 ; (the pane's look to test in, set in the test's settings.ini as a user's would be; none: the app's default look)
 if A_Args.Length && !(A_Args[1] = "velvet" || A_Args[1] = "windows11")
     FileAppend("usage: meowtab.test.ahk [velvet | windows11]`n", "*"), ExitApp(1)
 DATA_DIR := A_Temp "\meowtab-test-" A_TickCount   ; a new, empty data folder: the test never reads or changes the user's own
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))   ; gone again however the run ends
+STARTUP_DIR := DATA_DIR "\startup"         ; Start at login's shortcut goes there, never in the user's Startup folder
 if A_Args.Length                           ; before the include: the app's startup reads it (and picks the title font by it)
     DirCreate(DATA_DIR), IniWrite(A_Args[1], DATA_DIR "\settings.ini", "settings", "PANE_LOOK")
 ANIM_EFFECTS := false                      ; Windows' "Animation effects" as the app reads it (Animates): Velvet's motion only in its checks
@@ -81,6 +82,7 @@ Sleep 800                                  ; let a tiling WM settle them
 #Include %A_LineFile%\..\look.ahk
 #Include %A_LineFile%\..\settings-data.ahk
 #Include %A_LineFile%\..\panel.ahk
+#Include %A_LineFile%\..\login.ahk
 
 for w in guis
     w.Destroy()

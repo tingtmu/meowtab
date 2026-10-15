@@ -43,6 +43,7 @@ Run only one at a time; both replace Alt+Tab. The other `.ahk` files are parts t
 - `gif.ahk`: animated GIFs, read as frames and written back
 - `cutout.ahk`, `cutout-gif.ahk`, `cutout-mcode.ahk`: Clean background (a still picture, an animated GIF, and the machine code built from `cutout.c`, never edited by hand)
 - `desktop-icon.ahk`: the Desktop icon shortcut on the tray menu
+- `start-at-login.ahk`: the Start at login shortcut on the tray menu (in the Startup folder, with Windows' own switch for it)
 - `tests\meowtab.test.ahk`: the integration test, which runs its checks from parts beside it in `tests\` (`ALL PASSED` required before merging)
 
 `meowtab.ahk` also has a **Native look** block of constants just below the settings (pane padding, tile sizes and gaps, the selection ring, the close button, light and dark colours), each line commented, for tinkering. Velvet's palettes and sizes sit next to the Windows 11 ones (`VELVET_LIGHT` and `VELVET_DARK` beside `LIGHT_PAL` and `DARK_PAL`).

@@ -20,15 +20,18 @@ DesktopIconToggle(*) {   ; tray menu click: remove the shortcut if there is one,
         TrayTip "Couldn't change the desktop icon: " err, ScriptBase(), "Icon! Mute"
 }
 
-; The exe is its own target and icon. As .ahk the target is AutoHotkey running the script, with the
-; shortcut icon from assets\ (AutoHotkey's own icon if that file isn't there). "" = ok, else the error.
-DesktopIconMake() {
-    name := ScriptBase(), desc := "Open " name " settings", ico := AppDir() "assets\meowtab.ico"
+DesktopIconMake() => ShortcutMake(DesktopLink(), "/settings", "Open " ScriptBase() " settings")
+
+; A shortcut that starts the switcher (this one and start-at-login.ahk's). The exe is its own target and icon. As .ahk the
+; target is AutoHotkey running the script, with the shortcut icon from assets\ (AutoHotkey's own icon if that file isn't
+; there). "" = ok, else the error.
+ShortcutMake(link, args, desc) {
+    ico := AppDir() "assets\meowtab.ico"
     try {
         if A_IsCompiled
-            FileCreateShortcut A_ScriptFullPath, DesktopLink(), A_ScriptDir, "/settings", desc, A_ScriptFullPath
+            FileCreateShortcut A_ScriptFullPath, link, A_ScriptDir, args, desc, A_ScriptFullPath
         else
-            FileCreateShortcut A_AhkPath, DesktopLink(), A_ScriptDir, '"' A_ScriptFullPath '" /settings', desc
+            FileCreateShortcut A_AhkPath, link, A_ScriptDir, Trim('"' A_ScriptFullPath '" ' args), desc
                 , FileExist(ico) ? ico : A_AhkPath
     } catch as e
         return e.Message
@@ -58,8 +61,9 @@ DesktopWelcomeDue() => A_IsCompiled && !DesktopIconExists() && IniRead(SettingsF
 ; A timer's own thread, so hotkeys (Alt+Tab) keep working while the question is open. Either answer is
 ; remembered in settings.ini ([state]); the panel's Reset leaves that section alone.
 DesktopWelcome() {
-    name := ScriptBase()
-    yes := MsgBox(name " is running: hold Alt and press Tab.`n`nPut an icon on the desktop? It opens the settings, "
+    name := ScriptBase(), login := StartAtLoginWelcome()   ; MeowTab's starts at login from now on (start-at-login.ahk)
+    yes := MsgBox(name " is running: hold Alt and press Tab." (login ? " It also starts when you sign in; untick Start at login "
+        . "in the tray menu to stop that." : "") "`n`nPut an icon on the desktop? It opens the settings, "
         . "where you can choose your own pictures.", name, "YesNo Iconi") = "Yes"
     try {
         SettingsCreate(SettingsFile())

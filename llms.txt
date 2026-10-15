@@ -18,7 +18,7 @@ Scoop is also an available install alternative: `scoop bucket add meowtab https:
 
 ## Launch, version, and removal
 
-Launch later in PowerShell with `& "$env:LOCALAPPDATA\Programs\MeowTab\meowtab.exe"`. Check the installed tag with `(Get-Content "$env:LOCALAPPDATA\Programs\MeowTab\.zip-install.json" -Raw | ConvertFrom-Json).tag`; its `format` field is `meowtab-zip-v1`. The executable's file version also reports the version. To remove this helper-managed ZIP install, exit MeowTab and delete `%LOCALAPPDATA%\Programs\MeowTab`; this keeps settings and pictures in `%APPDATA%\MeowTab\settings.ini` and `%APPDATA%\MeowTab\images\`. The README has the [full removal guidance](https://github.com/tingtmu/meowtab#remove-meowtab).
+After its first launch it also starts when the user signs in (tray menu > Start at login). Launch later in PowerShell with `& "$env:LOCALAPPDATA\Programs\MeowTab\meowtab.exe"`. Check the installed tag with `(Get-Content "$env:LOCALAPPDATA\Programs\MeowTab\.zip-install.json" -Raw | ConvertFrom-Json).tag`; its `format` field is `meowtab-zip-v1`. The executable's file version also reports the version. To remove this helper-managed ZIP install, untick Start at login in MeowTab's tray menu (or delete `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\meowtab.lnk`), exit MeowTab and delete `%LOCALAPPDATA%\Programs\MeowTab`; this keeps settings and pictures in `%APPDATA%\MeowTab\settings.ini` and `%APPDATA%\MeowTab\images\`. The README has the [full removal guidance](https://github.com/tingtmu/meowtab#remove-meowtab).
 
 ## Verify and read more
 

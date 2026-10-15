@@ -27,7 +27,8 @@ try {
     $destination = Join-Path $env:LOCALAPPDATA 'Programs/MeowTab'
     $testData = Join-Path $integrationRoot 'user-data'
     $desktop = Join-Path $integrationRoot 'desktop'
-    New-Item -ItemType Directory -Path $testData,$desktop | Out-Null
+    $startup = Join-Path $integrationRoot 'startup'
+    New-Item -ItemType Directory -Path $testData,$desktop,$startup | Out-Null
     [IO.File]::WriteAllText((Join-Path $testData 'settings.ini'), "[state]`nwelcomed=1`n")
     $prelude = Join-Path $integrationRoot 'isolate.ahk'
     $record = Join-Path $integrationRoot 'app-check.txt'
@@ -35,6 +36,7 @@ try {
     $preludeSource = @'
 #SingleInstance Off
 DATA_DIR := "__DATA__"
+STARTUP_DIR := "__STARTUP__"
 OnError((e, *) => (FileAppend("ERROR: " e.Message, "__RECORD__"), ExitApp(3)))
 SetTimer(InstallerLiveCheck, -500)
 InstallerLiveCheck() {
@@ -55,7 +57,7 @@ InstallerLiveCheck() {
     ExitApp(0)
 }
 '@
-    $preludeSource = $preludeSource.Replace('__DATA__', $testData).Replace('__DESKTOP__', $desktop).Replace('__APP__', $destination).Replace('__RECORD__', $record)
+    $preludeSource = $preludeSource.Replace('__DATA__', $testData).Replace('__DESKTOP__', $desktop).Replace('__STARTUP__', $startup).Replace('__APP__', $destination).Replace('__RECORD__', $record)
     [IO.File]::WriteAllText($prelude, $preludeSource, (New-Object Text.UTF8Encoding $false))
     function Start-MeowTab([string]$Executable) {
         # Test-only launch boundary executes the original embedded release script.

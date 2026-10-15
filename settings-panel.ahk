@@ -16,6 +16,7 @@
 #Include %A_LineFile%\..\cutout.ahk
 #Include %A_LineFile%\..\cutout-gif.ahk
 #Include %A_LineFile%\..\desktop-icon.ahk
+#Include %A_LineFile%\..\start-at-login.ahk
 #Include %A_LineFile%\..\windows.ahk
 
 ; The panel's palette (the warm ivory of the original glass switcher), one restrained accent.
@@ -28,13 +29,17 @@ OnExit((*) => (PanelClose(), 0))                      ; exit or reload (Save) wi
                                                       ; message handlers read are freed (else each repaint is an error dialog)
 A_TrayMenu.Insert("1&", "Settings…", SettingsOpen)
 A_TrayMenu.Insert("2&", "Desktop icon", DesktopIconToggle)
-A_TrayMenu.Insert("3&")
+A_TrayMenu.Insert("3&", "Start at login", StartAtLoginToggle)
+A_TrayMenu.Insert("4&")
 A_TrayMenu.Default := "Settings…"                     ; double-click the tray icon
+OnMessage(0x404, (w, l, *) => (l = 0x205 && (DesktopIconMark(), StartAtLoginMark()), ""))   ; the tray icon right-clicked
+                                                      ; (WM_RBUTTONUP): the check marks as they are now, before the menu shows
 if A_IsCompiled                                       ; an exe's menu is just Suspend, Pause, Exit: add Reload before Exit
     A_TrayMenu.Insert(DllCall("GetMenuItemCount", "ptr", A_TrayMenu.Handle) "&", "&Reload Script", (*) => Reload())
 else if FileExist(AppDir() "assets\meowtab.ico")      ; the exe carries the icon itself
     TraySetIcon AppDir() "assets\meowtab.ico"
 DesktopIconStart()                                    ; check mark, "/settings", the exe's first-run question
+StartAtLoginStart()                                   ; the exe's startup shortcut pointed at it, check mark
 
 Dpx(v) => Round(v * A_ScreenDPI / 96)                 ; 96-dpi layout units -> pixels
 

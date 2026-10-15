@@ -43,7 +43,7 @@
 
 ## 快速開始
 
-需要 64 位元的 Windows 11。壓克力窗格需要 22H2 或更新版本；較舊版本會顯示不透明窗格。發行版的執行檔不需要 AutoHotkey。更新或移除前，請先從系統匣結束喵塔布；設定與圖片會保留在 `%APPDATA%\MeowTab`，除非你[一併刪除](#移除喵塔布)。
+需要 64 位元的 Windows 11。壓克力窗格需要 22H2 或更新版本；較舊版本會顯示不透明窗格。發行版的執行檔不需要 AutoHotkey。更新或移除前，請先從系統匣結束喵塔布；移除前也請先在系統匣選單中取消勾選 **Start at login**。設定與圖片會保留在 `%APPDATA%\MeowTab`，除非你[一併刪除](#移除喵塔布)。
 
 **PowerShell**（5.1 或 7）：安裝並啟動最新發行版，不需要系統管理員權限或套件管理器。[安裝輔助程式的原始碼](https://github.com/tingtmu/meowtab/blob/main/tools/install.ps1)可直接閱讀；它會從同一個發行版下載 ZIP 及其雜湊值，確認檔案無誤後才安裝。
 
@@ -74,7 +74,7 @@ scoop install meowtab/meowtab
 
 **可攜式 ZIP：** 從[最新發行版](https://github.com/tingtmu/meowtab/releases/latest)或[直接下載連結](https://github.com/tingtmu/meowtab/releases/latest/download/meowtab.zip)下載 `meowtab.zip`，[檢查下載檔案](#檢查下載檔案)，解壓縮到自己的資料夾，並將資料夾中的檔案保留在一起。按兩下 `meowtab.exe`。重新下載並解壓縮最新發行版即可更新；刪除程式資料夾即可移除。
 
-**首次啟動：** 喵塔布第一次啟動時，會詢問是否要在桌面放置一個可開啟設定面板的圖示；無論選哪個答案，都會記住。接著按住 **Alt** 再按 **Tab**。按兩下系統匣中打瞌睡的貓咪圖示即可開啟面板；按右鍵可重新載入、結束，或勾選 **Desktop icon**。
+**首次啟動：** 喵塔布第一次啟動時，會設定為登入時自動啟動，並詢問是否要在桌面放置一個可開啟設定面板的圖示；無論選哪個答案，都會記住。接著按住 **Alt** 再按 **Tab**。按兩下系統匣中打瞌睡的貓咪圖示即可開啟面板；按右鍵可重新載入、結束、勾選 **Desktop icon**，或取消勾選 **Start at login**，讓它不再於登入時啟動。
 
 `meowtab-classic.exe`（經典版）是原本的版面：標題清單旁有一個大型預覽，圖片則在窗格內的左下角。兩個程式一次只能執行其中一個。從原始碼執行的方法請見 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
@@ -165,7 +165,7 @@ Velvet 的動態效果，以及兩種外觀和面板中的 GIF，都會配合 Wi
 
 ## 移除喵塔布
 
-如果曾在系統匣選單中勾選 **Desktop icon**，請取消勾選（會移除捷徑）。從系統匣結束程式，再刪除程式資料夾，或使用[快速開始](#快速開始)中的解除安裝指令。也請移除自行加入的啟動捷徑。設定與圖片會保留在 `%APPDATA%\MeowTab`，供日後安裝使用；若要一併刪除：
+在系統匣選單中取消勾選 **Start at login**；如果曾勾選 **Desktop icon**，也請取消勾選（各自會移除其捷徑）。從系統匣結束程式，再刪除程式資料夾，或使用[快速開始](#快速開始)中的解除安裝指令。設定與圖片會保留在 `%APPDATA%\MeowTab`，供日後安裝使用；若要一併刪除：
 
 ```
 Remove-Item "$env:APPDATA\MeowTab" -Recurse
@@ -175,7 +175,6 @@ Remove-Item "$env:APPDATA\MeowTab" -Recurse
 
 - **系統管理員視窗。** 當以系統管理員權限執行的視窗取得焦點時，Windows 會阻擋一般程式的快速鍵，因此會出現 Windows 內建的 Alt+Tab。以系統管理員身分執行喵塔布，即可在這些視窗中使用。
 - **不連線。** 喵塔布不會連上網路；設定與圖片都留在你的電腦上，位於 `%APPDATA%\MeowTab`。
-- **登入時啟動。** 按 `Win+R`，輸入 `shell:startup`，再將 `meowtab.exe`（或 `meowtab.ahk`）的捷徑放入該資料夾。
 - **已知問題。** 預覽的下方角落是直角。勾選 **Only this monitor's windows**（`MONITORS=current`）時，在沒有視窗的螢幕上按 Alt+Tab 不會有作用。
 
 **GlazeWM（選用）：** 將喵塔布加入其 `config.yaml` 的 `startup_commands`：
