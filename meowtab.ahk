@@ -2,7 +2,7 @@
 #SingleInstance Force
 ;@Ahk2Exe-SetName meowtab
 ;@Ahk2Exe-SetDescription MeowTab: Windows 11 style Alt+Tab with a peeking mood picture
-;@Ahk2Exe-SetVersion 0.3.0
+;@Ahk2Exe-SetVersion 0.4.0
 ;@Ahk2Exe-SetCopyright MIT`, tingwei
 ;@Ahk2Exe-SetMainIcon assets\meowtab.ico
 ; Alt+Tab over every monitor's windows (or the focused one's: MONITORS). Windows cloaks windows on other virtual desktops, and
