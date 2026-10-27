@@ -19,10 +19,15 @@
 ;     section with no scroll bar, also where that's taller than the screen: it's raised until all of it has been on the
 ;     screen, and PrintWindow takes DWM's copy of the whole window. At this display's own scale: docs\settings.png is taken
 ;     on a 150 % display.
+;   story: the README's demo GIF (docs\demo.gif, docs\demo.zh-TW.gif), its captions in English or 繁體中文 (readme-story.ahk).
+;     Over the stand-in wallpaper, demo windows open and close between three opens of light's pane, on 3, 12 and 2 windows,
+;     with the captions drawn on the screen; ffmpeg (on the PATH) records that monitor, then makes the GIF: cropped to the
+;     scenes, about 960 px wide, looping. No GIF if a window that isn't ours showed in the crop. Hands off for ~20 s.
 ; Run from the repo root:  AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk <light | dark> [out.png] [windows] [velvet | windows11] [tint | -]
 ;                              [picture] [strength]
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk settings <out.png>
 ;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk hold <seconds 1-100>
+;                          AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk story <en | zh-TW> <out.gif>
 ; (default out: docs\meowtab.png / docs\meowtab-dark.png). Keep hands off the mouse and keyboard for ~5 s.
 DATA_DIR := A_Temp "\meowtab-shots-" A_TickCount   ; a new, empty data folder: default settings, and the user's own are never read or changed
 OnExit((*) => (DirExist(DATA_DIR) && DirDelete(DATA_DIR, true), 0))
@@ -33,6 +38,7 @@ if A_Args.Length > 3 && !(A_Args[4] = "velvet" || A_Args[4] = "windows11")
 if A_Args.Length > 3                               ; the look, in that folder's settings.ini: the app's startup reads it (and picks the title font by it)
     DirCreate(DATA_DIR), IniWrite(A_Args[4], DATA_DIR "\settings.ini", "settings", "PANE_LOOK")
 #Include %A_LineFile%\..\..\meowtab.ahk
+#Include %A_LineFile%\..\readme-story.ahk          ; the story mode: its constants (the texts, the timeline), then functions
 if A_Args.Length > 4 && A_Args[5] != "-"          ; the tint: Velvet's palettes as copies with that alpha (each keeps its colour)
     VELVET_LIGHT := VELVET_LIGHT.Clone(), VELVET_LIGHT.tint := [VELVET_LIGHT.tint[1], Integer(A_Args[5])]
     , VELVET_DARK := VELVET_DARK.Clone(), VELVET_DARK.tint := [VELVET_DARK.tint[1], Integer(A_Args[5])]
@@ -53,9 +59,11 @@ if which = "settings" && A_Args.Length < 2     ; no default out: the shot in doc
     FileAppend("usage: readme-shots.ahk settings <out.png>`n", "*"), ExitApp(1)
 if which = "hold" && !(A_Args.Length > 1 && IsInteger(A_Args[2]) && A_Args[2] >= 1 && A_Args[2] <= 100)   ; inside the safety exit
     FileAppend("usage: readme-shots.ahk hold <seconds 1-100>`n", "*"), ExitApp(1)
+if which = "story" && !(A_Args.Length > 2 && STORY_TEXT.Has(A_Args[2]))
+    FileAppend("usage: readme-shots.ahk story <en | zh-TW> <out.gif>`n", "*"), ExitApp(1)
 if which = "hold"                                 ; the GIF cat as the few picture, playing: Animation effects on, through the app's seam
     imgs[1] := GifStrip(REPO "\" IMG_DIR "\chill.gif", IMG_SIZE, &span, &frameMs), delays[1] := frameMs, spans[1] := span, ANIM_EFFECTS := true
-out := A_Args.Length > 1 ? A_Args[2] : REPO "\docs\meowtab" (which = "dark" ? "-dark" : "") ".png"
+out := which = "story" ? A_Args[3] : A_Args.Length > 1 ? A_Args[2] : REPO "\docs\meowtab" (which = "dark" ? "-dark" : "") ".png"
 if !RegExMatch(out, "^([A-Za-z]:)?\\")         ; relative: to where it was started from
     out := A_InitialWorkingDir "\" out
 if which = "settings"                             ; a room the panel can't fill (PanelFit): its whole content height
@@ -65,6 +73,8 @@ DEMO := [["Trip plan — 旅行計畫.md", 1500, 950, "1E1E1E", "3C3C3C", "shell
     , ["Photos — sleepy cat.png", 1400, 900, "202020", "2B2B2B", "imageres.dll", 68, "cat"]
     , ["收件匣 Inbox", 1400, 900, "FFFFFF", "0F6CBD", "shell32.dll", 157, "lines"]
     , ["Terminal", 1200, 700, "0C0C0C", "1F1F1F", "imageres.dll", 312, "term"]]
+if which = "story"                                ; its own windows, scenes and recording (readme-story.ahk); exits when done
+    StoryRun(A_Args[2], out)
 made := []
 Loop which = "hold" ? 2 : A_Args.Length > 2 ? Max(Integer(A_Args[3]), 1) : DEMO.Length {   ; more than the specs: cycle through them, titles numbered
     spec := DEMO[Mod(A_Index - 1, DEMO.Length) + 1], lap := (A_Index - 1) // DEMO.Length
@@ -100,15 +110,17 @@ for win in made
 wall.Destroy()
 ExitApp foreign = "" ? 0 : 4
 
-; The windows above `wallHwnd` in the Z-order that are visible, not cloaked and inside the crop, other than the pane and the
-; picture: "class (process)", comma-separated ("" = none).
-ForeignAbove(wallHwnd, x0, y0, x1, y1) {
-    found := "", rc := Buffer(16), h := DllCall("GetTopWindow", "ptr", 0, "ptr")
+; The windows above `wallHwnd` in the Z-order that are visible, not cloaked and inside the crop, other than this script's own
+; (the pane, the picture; the story's demo windows and captions): "class (process)", comma-separated ("" = none). seen: a Map
+; that also keeps each one's rect, by its name and rect (the story samples the monitor, then judges by the crop).
+ForeignAbove(wallHwnd, x0, y0, x1, y1, seen := 0) {
+    found := "", rc := Buffer(16), h := DllCall("GetTopWindow", "ptr", 0, "ptr"), me := DllCall("GetCurrentProcessId")
     while h && h != wallHwnd {
         cloaked := 0, DllCall("dwmapi\DwmGetWindowAttribute", "ptr", h, "uint", 14, "uint*", &cloaked, "uint", 4)
-        if h != g.Hwnd && h != peek.Hwnd && !cloaked && DllCall("IsWindowVisible", "ptr", h) && DllCall("GetWindowRect", "ptr", h, "ptr", rc)
-            && NumGet(rc, 0, "int") < x1 && NumGet(rc, 8, "int") > x0 && NumGet(rc, 4, "int") < y1 && NumGet(rc, 12, "int") > y0
-            try found .= (found ? ", " : "") WinGetClass(h) " (" WinGetProcessName(h) ")"
+        DllCall("GetWindowThreadProcessId", "ptr", h, "uint*", &pid := 0)
+        if pid != me && !cloaked && DllCall("IsWindowVisible", "ptr", h) && DllCall("GetWindowRect", "ptr", h, "ptr", rc)
+            && (l := NumGet(rc, 0, "int")) < x1 && (r := NumGet(rc, 8, "int")) > x0 && (t := NumGet(rc, 4, "int")) < y1 && (b := NumGet(rc, 12, "int")) > y0
+            try found .= (found ? ", " : "") (name := WinGetClass(h) " (" WinGetProcessName(h) ")"), seen && (seen[name " " l "," t "," r "," b] := [l, t, r, b])
         h := DllCall("GetWindow", "ptr", h, "uint", 2, "ptr")   ; GW_HWNDNEXT
     }
     return found
@@ -137,26 +149,27 @@ SettingsShot(file) {   ; the settings panel alone; exits when done
     ExitApp
 }
 
-DemoWindow(spec, title) {   ; an app-like window, shown without activation, with a system icon (WM_SETICON)
-    w := spec[2], h := spec[3], night := InStr("1E1E1E 202020 0C0C0C", spec[4])
+DemoWindow(spec, title, show := "NA", s := 1) {   ; an app-like window, shown without activation (or Show's options), at scale s, with a system icon (WM_SETICON)
+    Z(n) => Round(n * s)
+    w := Z(spec[2]), h := Z(spec[3]), night := InStr("1E1E1E 202020 0C0C0C", spec[4])
     win := Gui("-DPIScale", title), win.BackColor := spec[4], win.MarginX := 0, win.MarginY := 0
-    win.AddText("x0 y0 w" w " h64 Background" spec[5])
+    win.AddText("x0 y0 w" w " h" Z(64) " Background" spec[5])
     switch spec[8] {
     case "cat":                                    ; the shipped picture, as a photo viewer would show it
-        win.AddPicture("x" (w - 560) // 2 " y" 120 " w560 h560 BackgroundTrans", REPO "\images\chill_few.png")
+        win.AddPicture("x" (w - Z(560)) // 2 " y" Z(120) " w" Z(560) " h" Z(560) " BackgroundTrans", REPO "\images\chill_few.png")
     case "keys":                                   ; a calculator's display and keypad
-        win.SetFont("s40 c202020", "Segoe UI"), win.AddText("x40 y110 w" w - 80 " Right BackgroundTrans", "42")
+        win.SetFont("s" Z(40) " c202020", "Segoe UI"), win.AddText("x" Z(40) " y" Z(110) " w" w - Z(80) " Right BackgroundTrans", "42")
         Loop 20
-            win.AddText(Format("x{} y{} w{} h{} BackgroundE9E9E9", 24 + Mod(A_Index - 1, 4) * 150, 260 + (A_Index - 1) // 4 * 140, 138, 128))
+            win.AddText(Format("x{} y{} w{} h{} BackgroundE9E9E9", Z(24 + Mod(A_Index - 1, 4) * 150), Z(260 + (A_Index - 1) // 4 * 140), Z(138), Z(128)))
     default:
-        win.SetFont("s14 c" (night ? (spec[8] = "term" ? "4CC2FF" : "9CDCFE") : "404040"), spec[8] = "lines" ? "Segoe UI" : "Consolas")
+        win.SetFont("s" Z(14) " c" (night ? (spec[8] = "term" ? "4CC2FF" : "9CDCFE") : "404040"), spec[8] = "lines" ? "Segoe UI" : "Consolas")
         text := Map("code", ["## Day 1 — 台北 Taipei", "- [x] 101 observatory", "- [ ] 夜市 night market", "", "## Day 2 — 九份 Jiufen", "- [ ] tea house", "- [ ] lanterns"]
             , "term", ["PS> git status", "On branch main", "nothing to commit, working tree clean", "PS> meow", "=^.^=", "PS> _"]
             , "lines", ["Re: Friday lunch?", "Weekly update — draft", "Your package is on its way", "相片已分享 Photos shared", "Meeting notes"])[spec[8]]
         for i, line in text
-            win.AddText("x48 y" 70 + i * 52 " w" w - 96 " BackgroundTrans", line)
+            win.AddText("x" Z(48) " y" Z(70 + i * 52) " w" w - Z(96) " BackgroundTrans", line)
     }
-    win.Show("NA w" w " h" h)
+    win.Show(show " w" w " h" h)
     hi := LoadPicture(spec[6], "Icon" spec[7] " w32 h32", &kind)
     if hi && kind = 1                              ; IMAGE_ICON
         DllCall("SendMessageW", "ptr", win.Hwnd, "uint", 0x80, "ptr", 1, "ptr", hi)   ; WM_SETICON, ICON_BIG

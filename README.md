@@ -6,6 +6,8 @@ English | [繁體中文](README.zh-TW.md)
 
 MeowTab replaces Alt+Tab with live window previews on a frosted acrylic pane that follows light and dark mode. Its default look, Velvet, is native at a glance and softer and warmer up close; the Windows 11 look copies Windows' own. A picture peeks over the top-left edge and changes with how many windows you have open. A sleepy cat when you have a few, a cat sprawled belly up when it's getting crowded. Swap in your own pictures and let your pet, your mascot or your boss judge your window count.
 
+![MeowTab's cat watching the windows pile up, then giving up](docs/demo.gif)
+
 ![MeowTab](docs/meowtab.png)
 *Velvet (default)*
 

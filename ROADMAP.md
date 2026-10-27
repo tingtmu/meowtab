@@ -78,23 +78,12 @@ The 30-window numbers are from 2026-10-09, over Remote Desktop: 1920 × 1080 at 
 
 ## 6. A new demo GIF: "Your Alt+Tab cat monitors your work stress"
 
-About 10 s, looping seamlessly:
+**Done**: each README opens with a 12 s looping demo of the real MeowTab in Velvet's light look: `docs/demo.gif` in English, `docs/demo.zh-TW.gif` in 繁體中文. It follows a workday:
+- The pane opens on 3 windows: the side-eyed cat, with the slogan.
+- Demo windows pile up on the desktop. The pane opens on 12: the cat lies belly up, the grid scrolls, "too many...".
+- The windows close. The pane opens on 2: the cat sleeps, "cozy ♡", then "Too many windows. One tired cat, meow~".
 
-| Time | Beat | On screen | Caption |
-| --- | --- | --- | --- |
-| 0-2 s | Calm | 2 windows; Alt+Tab; the cat gently peeks up (few) | cozy ♡ |
-| 2-5 s | Work piles up | demo windows open one after another (browser-like, terminal, notes, photos); the grid fills; the cat rises (some) | nice ✌ |
-| 5-8 s | Chaos | 10+ windows appear rapidly; fast Alt+Tab cycling; the cat stares, more concerned (many) | too many… then a tiny "bro." |
-| 8-10 s | Punchline | hold on the cat judging the screen | Your workload is now being supervised. |
-| loop | | cut straight back to the calm 2-window frame | |
-
-Production notes:
-
-- **Privacy:** only demo windows with neutral titles and fake contents, over a stand-in wallpaper covering the monitor the pane opens on, like the README screenshots. No real browser, terminal or files of the user's.
-- **Driving it:** a script, not real keystrokes. Open and close demo windows on a timeline and call `Step()` / `Finish()` directly (synthetic Alt key events are unreliable over Remote Desktop with a tiling WM; see the test's notes).
-- **Captions:** the native look has no caption, so add them in post with ffmpeg `drawtext` (rounded label, soft shadow, the same font as the titles). A small speech bubble next to the cat could become a product feature later; it isn't needed for the GIF.
-- **Recording:** ffmpeg `gdigrab` of the region at 30 fps. Export about 960 px wide with `palettegen` / `paletteuse`, under about 5 MB for `docs/demo.gif`, plus an MP4.
-- The "increasingly concerned" cat depends on item 7's new picture. More mood levels (e.g. a fourth one at 15+ windows) would be a separate feature.
+Only demo windows over the stand-in wallpaper show. The captions are drawn on the screen during the recording, so they stay in sync. `tools\readme-shots.ahk story` records either GIF again (see [How to capture](#how-to-capture-screenshots-and-the-gif)). A speech bubble by the cat, or more mood levels, would be separate features.
 
 ## 7. New "many" picture
 
@@ -150,4 +139,4 @@ Production notes:
 
 ## How to capture screenshots and the GIF
 
-The capture script used for the 0.1 README lists only its own demo windows. It puts a stand-in wallpaper over the monitor where the pane opens, captures the pane with `BitBlt` (`CAPTUREBLT`, which includes the acrylic and the DWM thumbnails), and crops to the pane and the picture. It needs a connected desktop. A copy lives in `tools/readme-shots.ahk`; run it from the repo root with `AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk light docs\meowtab.png` (or `dark`). A window count after the file lists more demo windows (`light out.png 12` reaches `PEEK_MAX`), and a look after the count picks the pane's look (`light docs\meowtab-windows11.png 5 windows11`; the default is Velvet). A tint alpha after the look (0–255) takes the shot with Velvet's tint at that strength, to compare strengths (`light out.png 5 velvet 36`). `settings <out.png>` captures the settings panel alone, at its whole height, with default settings; `docs/settings.png` is framed on a 150 % display.
+The capture script used for the 0.1 README lists only its own demo windows. It puts a stand-in wallpaper over the monitor where the pane opens, captures the pane with `BitBlt` (`CAPTUREBLT`, which includes the acrylic and the DWM thumbnails), and crops to the pane and the picture. It needs a connected desktop. A copy lives in `tools/readme-shots.ahk`; run it from the repo root with `AutoHotkey64.exe /ErrorStdOut tools\readme-shots.ahk light docs\meowtab.png` (or `dark`). A window count after the file lists more demo windows (`light out.png 12` reaches `PEEK_MAX`), and a look after the count picks the pane's look (`light docs\meowtab-windows11.png 5 windows11`; the default is Velvet). A tint alpha after the look (0–255) takes the shot with Velvet's tint at that strength, to compare strengths (`light out.png 5 velvet 36`). `settings <out.png>` captures the settings panel alone, at its whole height, with default settings; `docs/settings.png` is framed on a 150 % display. `story <en | zh-TW> <out.gif>` records the README's demo GIF in that language (`docs/demo.gif`, `docs/demo.zh-TW.gif`): demo windows open and close between three opens of the pane, with the captions drawn on the screen, and ffmpeg (on the PATH) records that monitor and exports a looping GIF about 960 px wide.
